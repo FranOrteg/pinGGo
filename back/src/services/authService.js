@@ -18,7 +18,8 @@ function setRefreshCookie(res, token) {
   res.cookie('refresh_token', token, {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: 'strict',
+    // 'lax' allows same-site cross-port fetches (localhost:5173 → localhost:4000 in dev)
+    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/api/auth',
   });

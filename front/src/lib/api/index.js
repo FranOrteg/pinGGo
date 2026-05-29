@@ -1,3 +1,5 @@
+// Dev: direct calls to http://localhost:4000/api — same-site as frontend (localhost), cookies work.
+// Prod: set VITE_API_URL to deployed backend URL.
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api';
 
 let _accessToken = null;

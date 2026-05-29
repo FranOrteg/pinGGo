@@ -4,7 +4,13 @@ import { writable } from 'svelte/store';
 export const presence = writable({});
 
 export function bindPresenceListeners(socket) {
-  socket.on('presence:change', ({ userUuid, status }) => {
+  function onPresenceChange({ userUuid, status }) {
     presence.update((state) => ({ ...state, [userUuid]: status }));
-  });
+  }
+
+  socket.on('presence:change', onPresenceChange);
+
+  return () => {
+    socket.off('presence:change', onPresenceChange);
+  };
 }

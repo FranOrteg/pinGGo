@@ -4,12 +4,13 @@
   import { authReady, isAuthenticated } from '$lib/stores/auth.js';
 
   onMount(() => {
-    const unsub = authReady.subscribe((ready) => {
+    let unsub;
+    unsub = authReady.subscribe((ready) => {
       if (!ready) return;
-      unsub();
+      if (unsub) unsub();
       goto($isAuthenticated ? '/chat' : '/login', { replaceState: true });
     });
-    return unsub;
+    return () => { if (unsub) unsub(); };
   });
 </script>
 

@@ -11,13 +11,14 @@
   let loading = false;
 
   onMount(() => {
-    const unsub = authReady.subscribe((ready) => {
+    let unsub;
+    unsub = authReady.subscribe((ready) => {
       if (ready && $isAuthenticated) {
-        unsub();
+        if (unsub) unsub();
         goto('/chat', { replaceState: true });
       }
     });
-    return unsub;
+    return () => { if (unsub) unsub(); };
   });
 
   async function handleSubmit() {

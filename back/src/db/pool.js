@@ -20,7 +20,9 @@ export function getPool() {
 
 /** Execute a query and return all rows. */
 export async function query(sql, params = []) {
-  const [rows] = await getPool().execute(sql, params);
+  // Use query() instead of execute() to avoid BigInt/prepared-statement type issues.
+  // mysql2 still escapes values safely via its client-side escaping.
+  const [rows] = await getPool().query(sql, params);
   return rows;
 }
 

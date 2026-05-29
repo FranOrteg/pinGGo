@@ -8,13 +8,16 @@
   import { getSocket } from '$lib/socket/client.js';
   import Sidebar from '$lib/components/Sidebar.svelte';
 
+  export const data = undefined; // SvelteKit layout prop — silences "unknown prop" warning
+
   let ready = false;
 
   onMount(() => {
     let cleanup;
-    const unsub = authReady.subscribe(async (isReady) => {
+    let unsub;
+    unsub = authReady.subscribe(async (isReady) => {
       if (!isReady) return;
-      unsub();
+      if (unsub) unsub();
 
       if (!$isAuthenticated) {
         goto('/login', { replaceState: true });
@@ -33,7 +36,7 @@
       ready = true;
     });
 
-    return () => { unsub(); cleanup?.(); };
+    return () => { if (unsub) unsub(); cleanup?.(); };
   });
 </script>
 
