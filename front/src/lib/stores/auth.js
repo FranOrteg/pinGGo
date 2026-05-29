@@ -4,6 +4,7 @@ import { createSocketClient, disconnectSocket } from '$lib/socket/client.js';
 
 export const authUser = writable(null);
 export const accessToken = writable(null);
+export const authReady = writable(false);
 
 export const isAuthenticated = derived(authUser, ($u) => $u !== null);
 
@@ -23,6 +24,7 @@ export async function logout() {
   await api.post('/auth/logout').catch(() => {});
   authUser.set(null);
   accessToken.set(null);
+  authReady.set(false);
   setAccessToken(null);
   disconnectSocket();
 }
@@ -42,6 +44,8 @@ export async function refreshToken() {
   } catch {
     authUser.set(null);
     return null;
+  } finally {
+    authReady.set(true);
   }
 }
 

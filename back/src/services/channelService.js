@@ -46,16 +46,40 @@ export async function getChannel(req, res, next) {
 
 export async function createChannel(req, res, next) {
   try {
-    const { name, type = 'channel', isPrivate = false, memberUuids = [] } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
+    const { name, description = '', type = 'channel', isPrivate = false, memberUuids = [] } = req.body;
+
+    const isDirect = type === 'direct' || type === 'group';
+    if (!isDirect && !name) return res.status(400).json({ error: 'name is required' });
 
     const creator = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
     if (!creator) return res.status(404).json({ error: 'User not found' });
 
+    // For DMs: check if a direct channel already exists between these two users to avoid duplicates
+    if (type === 'direct' && memberUuids.length === 1) {
+      const existing = await queryOne(
+        `SELECT c.uuid FROM channels c
+         JOIN channel_members cm1 ON cm1.channel_id = c.id
+         JOIN users u1 ON u1.id = cm1.user_id AND u1.uuid = ?
+         JOIN channel_members cm2 ON cm2.channel_id = c.id
+         JOIN users u2 ON u2.id = cm2.user_id AND u2.uuid = ?
+         WHERE c.type = 'direct'
+         LIMIT 1`,
+        [req.user.sub, memberUuids[0]]
+      );
+      if (existing) {
+        const ch = await queryOne(
+          'SELECT uuid, name, type, is_private, description FROM channels WHERE uuid = ?',
+          [existing.uuid]
+        );
+        return res.json({ channel: ch });
+      }
+    }
+
+    const channelName = isDirect ? null : name;
     const uuid = uuidv4();
     await query(
-      'INSERT INTO channels (uuid, name, type, is_private, created_by) VALUES (?, ?, ?, ?, ?)',
-      [uuid, name, type, isPrivate, creator.id]
+      'INSERT INTO channels (uuid, name, description, type, is_private, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [uuid, channelName, description, type, isPrivate ? 1 : 0, creator.id]
     );
     const channel = await queryOne('SELECT id, uuid FROM channels WHERE uuid = ?', [uuid]);
 
@@ -74,7 +98,9 @@ export async function createChannel(req, res, next) {
       }
     }
 
-    res.status(201).json({ channel: { uuid: channel.uuid, name, type, isPrivate } });
+    res.status(201).json({
+      channel: { uuid: channel.uuid, name: channelName, description, type, is_private: isPrivate ? 1 : 0 },
+    });
   } catch (err) {
     next(err);
   }

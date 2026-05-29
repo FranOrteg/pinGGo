@@ -41,26 +41,36 @@ export function notifyTyping(channelId) {
   }, 2000);
 }
 
-/** Register real-time socket listeners. Call once after socket is ready. */
+/** Register real-time socket listeners. Returns cleanup function. */
 export function bindSocketListeners(socket) {
-  socket.on('message:new', ({ channelId, message }) => {
+  function onNewMessage({ channelId, message }) {
     messagesByChannel.update((state) => ({
       ...state,
       [channelId]: [...(state[channelId] ?? []), message],
     }));
-  });
+  }
 
-  socket.on('typing:start', ({ channelId, username }) => {
+  function onTypingStart({ channelId, username }) {
     typingByChannel.update((state) => ({
       ...state,
       [channelId]: [...new Set([...(state[channelId] ?? []), username])],
     }));
-  });
+  }
 
-  socket.on('typing:stop', ({ channelId, username }) => {
+  function onTypingStop({ channelId, username }) {
     typingByChannel.update((state) => ({
       ...state,
       [channelId]: (state[channelId] ?? []).filter((u) => u !== username),
     }));
-  });
+  }
+
+  socket.on('message:new', onNewMessage);
+  socket.on('typing:start', onTypingStart);
+  socket.on('typing:stop', onTypingStop);
+
+  return () => {
+    socket.off('message:new', onNewMessage);
+    socket.off('typing:start', onTypingStart);
+    socket.off('typing:stop', onTypingStop);
+  };
 }
