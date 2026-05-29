@@ -1,6 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { api } from '$lib/api/index.js';
 import { getSocket } from '$lib/socket/client.js';
+import { initUnread, clearUnread } from '$lib/stores/unread.js';
 
 export const channels = writable([]);
 export const activeChannelId = writable(null);
@@ -13,6 +14,7 @@ export const currentChannel = derived(
 export async function loadChannels() {
   const data = await api.get('/channels');
   channels.set(data.channels);
+  initUnread(data.channels);
   return data.channels;
 }
 
@@ -29,7 +31,6 @@ export async function createChannel(name, description = '', isPrivate = false) {
 export async function createDM(userUuid) {
   const data = await api.post('/channels', { type: 'direct', memberUuids: [userUuid] });
   channels.update((list) => {
-    // Avoid duplicates if DM already exists
     const exists = list.some((c) => c.uuid === data.channel.uuid);
     return exists ? list : [...list, data.channel];
   });
@@ -39,4 +40,6 @@ export async function createDM(userUuid) {
 export function setActiveChannel(channelId) {
   activeChannelId.set(channelId);
   getSocket()?.emit('channel:join', { channelId });
+  clearUnread(channelId);
+  api.post(`/channels/${channelId}/read`).catch(() => {});
 }

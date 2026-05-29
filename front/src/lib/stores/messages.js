@@ -1,6 +1,8 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { api } from '$lib/api/index.js';
 import { getSocket } from '$lib/socket/client.js';
+import { activeChannelId } from '$lib/stores/channels.js';
+import { incrementUnread } from '$lib/stores/unread.js';
 
 /** { [channelId]: Message[] } */
 export const messagesByChannel = writable({});
@@ -15,7 +17,7 @@ export async function loadMessages(channelId, before = null) {
   messagesByChannel.update((state) => ({
     ...state,
     [channelId]: before
-      ? [...data.messages, ...(state[channelId] ?? [])] // prepend older messages
+      ? [...data.messages, ...(state[channelId] ?? [])]
       : data.messages,
   }));
 
@@ -41,12 +43,56 @@ export function notifyTyping(channelId) {
   }, 2000);
 }
 
+export async function editMessage(messageId, content) {
+  return api.patch(`/messages/${messageId}`, { content });
+}
+
+export async function deleteMessage(messageId) {
+  return api.delete(`/messages/${messageId}`);
+}
+
+export async function toggleReaction(messageId, emoji, isMine) {
+  if (isMine) {
+    return api.delete(`/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+  } else {
+    return api.post(`/messages/${messageId}/reactions`, { emoji });
+  }
+}
+
 /** Register real-time socket listeners. Returns cleanup function. */
 export function bindSocketListeners(socket) {
   function onNewMessage({ channelId, message }) {
     messagesByChannel.update((state) => ({
       ...state,
       [channelId]: [...(state[channelId] ?? []), message],
+    }));
+    if (get(activeChannelId) !== channelId) {
+      incrementUnread(channelId);
+    }
+  }
+
+  function onMessageUpdated({ channelId, message }) {
+    messagesByChannel.update((state) => ({
+      ...state,
+      [channelId]: (state[channelId] ?? []).map((m) =>
+        m.uuid === message.uuid ? message : m
+      ),
+    }));
+  }
+
+  function onMessageDeleted({ channelId, messageId }) {
+    messagesByChannel.update((state) => ({
+      ...state,
+      [channelId]: (state[channelId] ?? []).filter((m) => m.uuid !== messageId),
+    }));
+  }
+
+  function onMessageReaction({ channelId, messageId, reactions }) {
+    messagesByChannel.update((state) => ({
+      ...state,
+      [channelId]: (state[channelId] ?? []).map((m) =>
+        m.uuid === messageId ? { ...m, reactions } : m
+      ),
     }));
   }
 
@@ -65,12 +111,19 @@ export function bindSocketListeners(socket) {
   }
 
   socket.on('message:new', onNewMessage);
+  socket.on('message:updated', onMessageUpdated);
+  socket.on('message:deleted', onMessageDeleted);
+  socket.on('message:reaction', onMessageReaction);
   socket.on('typing:start', onTypingStart);
   socket.on('typing:stop', onTypingStop);
 
   return () => {
     socket.off('message:new', onNewMessage);
+    socket.off('message:updated', onMessageUpdated);
+    socket.off('message:deleted', onMessageDeleted);
+    socket.off('message:reaction', onMessageReaction);
     socket.off('typing:start', onTypingStart);
     socket.off('typing:stop', onTypingStop);
   };
 }
+

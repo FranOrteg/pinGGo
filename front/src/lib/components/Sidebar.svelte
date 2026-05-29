@@ -2,6 +2,7 @@
   import { channels, activeChannelId, setActiveChannel, currentChannel } from '$lib/stores/channels.js';
   import { authUser, logout } from '$lib/stores/auth.js';
   import { presence } from '$lib/stores/presence.js';
+  import { unread } from '$lib/stores/unread.js';
   import PresenceDot from './PresenceDot.svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
   import UserSearchModal from './UserSearchModal.svelte';
@@ -48,6 +49,9 @@
             >
               <span class="nav-item__hash">#</span>
               <span class="nav-item__name">{ch.name}</span>
+              {#if ($unread[ch.uuid] ?? 0) > 0}
+                <span class="unread-badge">{$unread[ch.uuid] > 99 ? '99+' : $unread[ch.uuid]}</span>
+              {/if}
             </button>
           </li>
         {:else}
@@ -79,6 +83,9 @@
                 <PresenceDot status={$presence[dm.uuid] ?? 'offline'} />
               </span>
               <span class="nav-item__name">{dm.name ?? 'Unknown'}</span>
+              {#if ($unread[dm.uuid] ?? 0) > 0}
+                <span class="unread-badge">{$unread[dm.uuid] > 99 ? '99+' : $unread[dm.uuid]}</span>
+              {/if}
             </button>
           </li>
         {:else}
@@ -223,7 +230,22 @@
 
   .nav-item__hash { font-size: 16px; opacity: 0.6; flex-shrink: 0; }
   .nav-item__dm-dot { display: flex; align-items: center; flex-shrink: 0; }
-  .nav-item__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+  .unread-badge {
+    flex-shrink: 0;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
 
   .sidebar__footer {
     padding: 10px 12px;

@@ -6,6 +6,7 @@ import {
   getChannel,
   addMember,
   leaveChannel,
+  markChannelRead,
 } from '../../services/channelService.js';
 import { getMessages } from '../../services/messageService.js';
 
@@ -16,6 +17,7 @@ router.use(authenticate);
 router.get('/', getMyChannels);
 router.post('/', createChannel);
 router.get('/:channelId', getChannel);
+router.post('/:channelId/read', markChannelRead);
 router.delete('/:channelId/members/me', leaveChannel);
 router.post('/:channelId/members', addMember);
 router.get('/:channelId/messages', getMessages);

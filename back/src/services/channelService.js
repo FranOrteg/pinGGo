@@ -4,7 +4,12 @@ import { query, queryOne } from '../db/pool.js';
 export async function getMyChannels(req, res, next) {
   try {
     const channels = await query(
-      `SELECT c.uuid, c.name, c.type, c.is_private, c.created_at, cm.last_read_at
+      `SELECT c.uuid, c.name, c.type, c.description, c.is_private, c.created_at,
+              (SELECT COUNT(*) FROM messages m
+               WHERE m.channel_id = c.id
+                 AND m.deleted_at IS NULL
+                 AND (cm.last_read_at IS NULL OR m.created_at > cm.last_read_at)
+              ) AS unread_count
        FROM channels c
        JOIN channel_members cm ON cm.channel_id = c.id
        JOIN users u ON u.id = cm.user_id
@@ -127,6 +132,23 @@ export async function addMember(req, res, next) {
     await query(
       'INSERT IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)',
       [channel.id, newMember.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function markChannelRead(req, res, next) {
+  try {
+    const { channelId } = req.params;
+    await query(
+      `UPDATE channel_members cm
+       JOIN channels c ON c.id = cm.channel_id
+       JOIN users u ON u.id = cm.user_id
+       SET cm.last_read_at = NOW()
+       WHERE c.uuid = ? AND u.uuid = ?`,
+      [channelId, req.user.sub]
     );
     res.json({ ok: true });
   } catch (err) {

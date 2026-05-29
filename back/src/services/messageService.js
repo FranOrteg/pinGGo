@@ -1,4 +1,5 @@
 import { query, queryOne } from '../db/pool.js';
+import { getIO } from '../socket/io.js';
 
 const MESSAGE_PROJECTION = `
   SELECT m.uuid, m.content, m.type, m.created_at, m.edited_at,
@@ -19,12 +20,58 @@ async function assertMembership(channelUuid, userUuid) {
   );
 }
 
+/** Fetch reactions for multiple messages in one query.
+ *  Returns a map: { [message_uuid]: [{ emoji, count, userUuids }] }
+ */
+async function getReactionsForMessages(messageUuids) {
+  if (!messageUuids.length) return {};
+  const placeholders = messageUuids.map(() => '?').join(',');
+  const rows = await query(
+    `SELECT m.uuid AS message_uuid, r.emoji, COUNT(*) AS count,
+            JSON_ARRAYAGG(u.uuid) AS user_uuids
+     FROM reactions r
+     JOIN messages m ON m.id = r.message_id
+     JOIN users u ON u.id = r.user_id
+     WHERE m.uuid IN (${placeholders})
+     GROUP BY m.uuid, r.emoji`,
+    messageUuids
+  );
+
+  const map = {};
+  for (const row of rows) {
+    if (!map[row.message_uuid]) map[row.message_uuid] = [];
+    const userUuids = typeof row.user_uuids === 'string'
+      ? JSON.parse(row.user_uuids)
+      : (row.user_uuids ?? []);
+    map[row.message_uuid].push({ emoji: row.emoji, count: Number(row.count), userUuids });
+  }
+  return map;
+}
+
+/** Fetch reactions for a single message (used after reaction toggle to broadcast). */
+async function getMessageReactions(messageUuid) {
+  const rows = await query(
+    `SELECT r.emoji, COUNT(*) AS count, JSON_ARRAYAGG(u.uuid) AS user_uuids
+     FROM reactions r
+     JOIN messages m ON m.id = r.message_id
+     JOIN users u ON u.id = r.user_id
+     WHERE m.uuid = ?
+     GROUP BY r.emoji`,
+    [messageUuid]
+  );
+  return rows.map((r) => ({
+    emoji: r.emoji,
+    count: Number(r.count),
+    userUuids: typeof r.user_uuids === 'string' ? JSON.parse(r.user_uuids) : (r.user_uuids ?? []),
+  }));
+}
+
 /** GET /channels/:channelId/messages — cursor-based pagination */
 export async function getMessages(req, res, next) {
   try {
     const { channelId } = req.params;
     const limit = Math.min(Number(req.query.limit) || 50, 100);
-    const before = req.query.before; // message uuid used as cursor
+    const before = req.query.before;
 
     const membership = await assertMembership(channelId, req.user.sub);
     if (!membership) return res.status(403).json({ error: 'Access denied' });
@@ -44,7 +91,14 @@ export async function getMessages(req, res, next) {
     params.push(limit);
 
     const messages = await query(sql, params);
-    res.json({ messages: messages.reverse(), hasMore: messages.length === limit });
+    const hasMore = messages.length === limit;
+
+    const reactionsMap = await getReactionsForMessages(messages.map((m) => m.uuid));
+    const withReactions = messages
+      .reverse()
+      .map((m) => ({ ...m, reactions: reactionsMap[m.uuid] ?? [] }));
+
+    res.json({ messages: withReactions, hasMore });
   } catch (err) {
     next(err);
   }
@@ -58,15 +112,26 @@ export async function editMessage(req, res, next) {
     if (!content) return res.status(400).json({ error: 'content is required' });
 
     const msg = await queryOne(
-      `SELECT m.id FROM messages m JOIN users u ON u.id = m.user_id
+      `SELECT m.id, c.uuid AS channel_uuid FROM messages m
+       JOIN users u ON u.id = m.user_id
+       JOIN channels c ON c.id = m.channel_id
        WHERE m.uuid = ? AND u.uuid = ? AND m.deleted_at IS NULL`,
       [messageId, req.user.sub]
     );
     if (!msg) return res.status(404).json({ error: 'Message not found or not yours' });
 
     await query('UPDATE messages SET content = ?, edited_at = NOW() WHERE id = ?', [content, msg.id]);
+
     const updated = await queryOne(`${MESSAGE_PROJECTION} WHERE m.uuid = ?`, [messageId]);
-    res.json({ message: updated });
+    const reactionsMap = await getReactionsForMessages([messageId]);
+    const msgWithReactions = { ...updated, reactions: reactionsMap[messageId] ?? [] };
+
+    getIO()?.to(`channel:${msg.channel_uuid}`).emit('message:updated', {
+      channelId: msg.channel_uuid,
+      message: msgWithReactions,
+    });
+
+    res.json({ message: msgWithReactions });
   } catch (err) {
     next(err);
   }
@@ -77,13 +142,21 @@ export async function deleteMessage(req, res, next) {
   try {
     const { messageId } = req.params;
     const msg = await queryOne(
-      `SELECT m.id FROM messages m JOIN users u ON u.id = m.user_id
+      `SELECT m.id, c.uuid AS channel_uuid FROM messages m
+       JOIN users u ON u.id = m.user_id
+       JOIN channels c ON c.id = m.channel_id
        WHERE m.uuid = ? AND u.uuid = ? AND m.deleted_at IS NULL`,
       [messageId, req.user.sub]
     );
     if (!msg) return res.status(404).json({ error: 'Message not found or not yours' });
 
     await query('UPDATE messages SET deleted_at = NOW() WHERE id = ?', [msg.id]);
+
+    getIO()?.to(`channel:${msg.channel_uuid}`).emit('message:deleted', {
+      channelId: msg.channel_uuid,
+      messageId,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -97,7 +170,12 @@ export async function addReaction(req, res, next) {
     const { emoji } = req.body;
     if (!emoji) return res.status(400).json({ error: 'emoji is required' });
 
-    const msg = await queryOne('SELECT id FROM messages WHERE uuid = ?', [messageId]);
+    const msg = await queryOne(
+      `SELECT m.id, c.uuid AS channel_uuid FROM messages m
+       JOIN channels c ON c.id = m.channel_id
+       WHERE m.uuid = ?`,
+      [messageId]
+    );
     const user = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
     if (!msg || !user) return res.status(404).json({ error: 'Not found' });
 
@@ -105,7 +183,15 @@ export async function addReaction(req, res, next) {
       'INSERT IGNORE INTO reactions (message_id, user_id, emoji) VALUES (?, ?, ?)',
       [msg.id, user.id, emoji]
     );
-    res.json({ ok: true });
+
+    const reactions = await getMessageReactions(messageId);
+    getIO()?.to(`channel:${msg.channel_uuid}`).emit('message:reaction', {
+      channelId: msg.channel_uuid,
+      messageId,
+      reactions,
+    });
+
+    res.json({ ok: true, reactions });
   } catch (err) {
     next(err);
   }
@@ -115,7 +201,12 @@ export async function addReaction(req, res, next) {
 export async function removeReaction(req, res, next) {
   try {
     const { messageId, emoji } = req.params;
-    const msg = await queryOne('SELECT id FROM messages WHERE uuid = ?', [messageId]);
+    const msg = await queryOne(
+      `SELECT m.id, c.uuid AS channel_uuid FROM messages m
+       JOIN channels c ON c.id = m.channel_id
+       WHERE m.uuid = ?`,
+      [messageId]
+    );
     const user = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
     if (!msg || !user) return res.status(404).json({ error: 'Not found' });
 
@@ -123,7 +214,15 @@ export async function removeReaction(req, res, next) {
       'DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?',
       [msg.id, user.id, emoji]
     );
-    res.json({ ok: true });
+
+    const reactions = await getMessageReactions(messageId);
+    getIO()?.to(`channel:${msg.channel_uuid}`).emit('message:reaction', {
+      channelId: msg.channel_uuid,
+      messageId,
+      reactions,
+    });
+
+    res.json({ ok: true, reactions });
   } catch (err) {
     next(err);
   }

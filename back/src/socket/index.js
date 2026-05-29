@@ -4,6 +4,7 @@ import config from '../config/index.js';
 import { authSocketMiddleware } from './middleware/authSocket.js';
 import { registerMessageHandlers } from './handlers/messageHandlers.js';
 import { registerPresenceHandlers } from './handlers/presenceHandlers.js';
+import { setIO } from './io.js';
 
 export function initSocket(httpServer, { client: pubClient, subscriber: subClient }) {
   const io = new Server(httpServer, {
@@ -13,6 +14,7 @@ export function initSocket(httpServer, { client: pubClient, subscriber: subClien
   });
 
   io.adapter(createAdapter(pubClient, subClient));
+  setIO(io);
   io.use(authSocketMiddleware);
 
   io.on('connection', (socket) => {

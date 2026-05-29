@@ -60,7 +60,7 @@ export function registerMessageHandlers(io, socket) {
         [uuid]
       );
 
-      io.to(`channel:${channelId}`).emit('message:new', { channelId, message });
+      io.to(`channel:${channelId}`).emit('message:new', { channelId, message: { ...message, reactions: [] } });
     } catch (err) {
       console.error('[socket] message:send error:', err);
       socket.emit('error', { message: 'Failed to send message' });
