@@ -4,7 +4,7 @@ import { getRedis } from '../../redis/client.js';
 const PRESENCE_TTL_SECONDS = 35; // slightly above the 25s heartbeat interval
 
 export function registerPresenceHandlers(io, socket) {
-  const { uuid: userUuid, username } = socket.data.user;
+  const { sub: userUuid, username } = socket.data.user;
   const presenceKey = `presence:${userUuid}`;
 
   async function setStatus(status) {

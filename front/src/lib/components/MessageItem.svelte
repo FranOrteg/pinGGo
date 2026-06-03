@@ -2,6 +2,7 @@
   import { authUser } from '$lib/stores/auth.js';
   import { editMessage, deleteMessage, toggleReaction } from '$lib/stores/messages.js';
   import EmojiPicker from './EmojiPicker.svelte';
+  import { isImage, formatFileSize } from '$lib/api/upload.js';
 
   export let message;
   export let showHeader = true;
@@ -150,7 +151,30 @@
           </div>
         </div>
       {:else}
-        <p class="message__content">{message.content}</p>
+        {#if message.content}
+          <p class="message__content">{message.content}</p>
+        {/if}
+        {#if message.file_url}
+          <div class="attachment">
+            {#if isImage(message.file_type)}
+              <img
+                src={message.file_url}
+                alt={message.file_name}
+                class="attachment__image"
+                loading="lazy"
+              />
+            {:else}
+              <a class="attachment__file" href={message.file_url} target="_blank" rel="noopener noreferrer" download={message.file_name}>
+                <span class="attachment__file-icon">📎</span>
+                <span class="attachment__file-info">
+                  <span class="attachment__file-name">{message.file_name}</span>
+                  {#if message.file_size}<span class="attachment__file-size">{formatFileSize(message.file_size)}</span>{/if}
+                </span>
+                <span class="attachment__download">↓</span>
+              </a>
+            {/if}
+          </div>
+        {/if}
       {/if}
 
       {#if reactions.length > 0}
@@ -193,9 +217,32 @@
           </div>
         </div>
       {:else}
-        <p class="message__content">
-          {message.content}{#if message.edited_at} <span class="message__edited">(edited)</span>{/if}
-        </p>
+        {#if message.content}
+          <p class="message__content">
+            {message.content}{#if message.edited_at} <span class="message__edited">(edited)</span>{/if}
+          </p>
+        {/if}
+        {#if message.file_url}
+          <div class="attachment">
+            {#if isImage(message.file_type)}
+              <img
+                src={message.file_url}
+                alt={message.file_name}
+                class="attachment__image"
+                loading="lazy"
+              />
+            {:else}
+              <a class="attachment__file" href={message.file_url} target="_blank" rel="noopener noreferrer" download={message.file_name}>
+                <span class="attachment__file-icon">📎</span>
+                <span class="attachment__file-info">
+                  <span class="attachment__file-name">{message.file_name}</span>
+                  {#if message.file_size}<span class="attachment__file-size">{formatFileSize(message.file_size)}</span>{/if}
+                </span>
+                <span class="attachment__download">↓</span>
+              </a>
+            {/if}
+          </div>
+        {/if}
       {/if}
 
       {#if reactions.length > 0}
@@ -388,4 +435,34 @@
     color: var(--color-text-muted);
     font-weight: 500;
   }
+
+  /* ── Attachments ── */
+  .attachment { margin-top: 6px; }
+  .attachment__image {
+    max-width: 360px;
+    max-height: 280px;
+    border-radius: 8px;
+    display: block;
+    object-fit: contain;
+    border: 1px solid var(--color-border);
+  }
+  .attachment__file {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--color-text);
+    max-width: 320px;
+    transition: border-color 0.15s;
+  }
+  .attachment__file:hover { border-color: var(--color-accent); }
+  .attachment__file-icon { font-size: 20px; flex-shrink: 0; }
+  .attachment__file-info { display: flex; flex-direction: column; min-width: 0; }
+  .attachment__file-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .attachment__file-size { font-size: 11px; color: var(--color-text-muted); }
+  .attachment__download { margin-left: auto; color: var(--color-accent); font-size: 16px; flex-shrink: 0; }
 </style>

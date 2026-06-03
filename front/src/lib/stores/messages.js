@@ -24,10 +24,14 @@ export async function loadMessages(channelId, before = null) {
   return data;
 }
 
-export function sendMessage(channelId, content) {
+export function sendMessage(channelId, content, attachment = null) {
   const socket = getSocket();
   if (!socket?.connected) throw new Error('Socket not connected');
-  socket.emit('message:send', { channelId, content });
+  socket.emit('message:send', {
+    channelId,
+    content: content || '',
+    ...(attachment ?? {}),
+  });
 }
 
 let _typingTimer = null;

@@ -43,3 +43,11 @@ export function setActiveChannel(channelId) {
   clearUnread(channelId);
   api.post(`/channels/${channelId}/read`).catch(() => {});
 }
+
+/** Call once after socket is created — re-joins active channel on every reconnect */
+export function bindChannelReconnect(socket) {
+  socket.on('connect', () => {
+    const id = get(activeChannelId);
+    if (id) socket.emit('channel:join', { channelId: id });
+  });
+}

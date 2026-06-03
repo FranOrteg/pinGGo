@@ -10,6 +10,8 @@
     "db:migrate": "node src/db/migrate.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1060.0",
+    "@aws-sdk/s3-request-presigner": "^3.1060.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

@@ -3,6 +3,7 @@ import { getIO } from '../socket/io.js';
 
 const MESSAGE_PROJECTION = `
   SELECT m.uuid, m.content, m.type, m.created_at, m.edited_at,
+         m.file_url, m.file_name, m.file_size, m.file_type,
          u.uuid AS user_uuid, u.username, u.avatar_url,
          parent.uuid AS parent_uuid
   FROM messages m

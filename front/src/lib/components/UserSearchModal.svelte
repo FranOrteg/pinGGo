@@ -23,7 +23,7 @@
     searching = true;
     error = '';
     try {
-      const data = await api(`/users/search?q=${encodeURIComponent(query)}`);
+      const data = await api.get(`/users/search?q=${encodeURIComponent(query)}`);
       results = (data.users ?? []).filter((u) => u.uuid !== $authUser?.uuid);
     } catch (e) {
       error = e.message;
@@ -48,6 +48,7 @@
 
 <svelte:window on:keydown={keydown} />
 
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <div
     class="modal-backdrop"
     on:click|self={() => dispatch('close')}

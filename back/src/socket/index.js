@@ -18,7 +18,7 @@ export function initSocket(httpServer, { client: pubClient, subscriber: subClien
   io.use(authSocketMiddleware);
 
   io.on('connection', (socket) => {
-    const { uuid, username } = socket.data.user;
+    const { sub: uuid, username } = socket.data.user;
     console.log(`[socket] + ${username} (${socket.id})`);
 
     // Personal room for targeted DMs and notifications

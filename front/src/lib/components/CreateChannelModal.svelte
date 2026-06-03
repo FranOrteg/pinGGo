@@ -61,7 +61,7 @@
             id="ch-name"
             bind:value={name}
             placeholder="e.g. general"
-            pattern="[a-z0-9_-]+"
+            pattern="[a-z0-9_\-]+"
             maxlength="80"
             required
             autofocus

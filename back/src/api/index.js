@@ -3,6 +3,7 @@ import authRouter from './auth/router.js';
 import usersRouter from './users/router.js';
 import channelsRouter from './channels/router.js';
 import messagesRouter from './messages/router.js';
+import uploadRouter from './upload/router.js';
 
 const router = Router();
 
@@ -12,5 +13,6 @@ router.use('/auth', authRouter);
 router.use('/users', usersRouter);
 router.use('/channels', channelsRouter);
 router.use('/messages', messagesRouter);
+router.use('/upload', uploadRouter);
 
 export default router;

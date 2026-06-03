@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../../db/pool.js';
 
 export function registerMessageHandlers(io, socket) {
-  const { uuid: userUuid } = socket.data.user;
+  const { sub: userUuid, username } = socket.data.user;
 
   /** Join a channel room — verifies membership first */
   socket.on('channel:join', async ({ channelId }) => {
@@ -23,9 +23,13 @@ export function registerMessageHandlers(io, socket) {
   });
 
   /** Send a message — persists to DB then broadcasts to the channel room */
-  socket.on('message:send', async ({ channelId, content, type = 'text', parentId = null }) => {
+  socket.on('message:send', async ({
+    channelId, content, type = 'text', parentId = null,
+    fileUrl = null, fileName = null, fileSize = null, fileType = null,
+  }) => {
     try {
-      if (!content?.trim()) return;
+      const hasFile = !!(fileUrl && fileName);
+      if (!content?.trim() && !hasFile) return;
 
       const user = await queryOne('SELECT id FROM users WHERE uuid = ?', [userUuid]);
       const channel = await queryOne('SELECT id FROM channels WHERE uuid = ?', [channelId]);
@@ -43,14 +47,19 @@ export function registerMessageHandlers(io, socket) {
         parentDbId = parent?.id ?? null;
       }
 
+      const resolvedType = hasFile ? 'file' : type;
       const uuid = uuidv4();
       await query(
-        'INSERT INTO messages (uuid, channel_id, user_id, content, type, parent_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuid, channel.id, user.id, content.trim(), type, parentDbId]
+        `INSERT INTO messages
+          (uuid, channel_id, user_id, content, type, parent_id, file_url, file_name, file_size, file_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, channel.id, user.id, content?.trim() || null, resolvedType, parentDbId,
+         fileUrl, fileName, fileSize ? Number(fileSize) : null, fileType]
       );
 
       const message = await queryOne(
         `SELECT m.uuid, m.content, m.type, m.created_at,
+                m.file_url, m.file_name, m.file_size, m.file_type,
                 u.uuid AS user_uuid, u.username, u.avatar_url,
                 parent.uuid AS parent_uuid
          FROM messages m
