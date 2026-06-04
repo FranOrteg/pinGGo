@@ -248,8 +248,7 @@
   }
 
   .sidebar__footer {
-    padding: 10px 12px;
-    border-top: 1px solid var(--color-border);
+    padding: 0px 16px 124px;
     display: flex;
     align-items: center;
     gap: 8px;

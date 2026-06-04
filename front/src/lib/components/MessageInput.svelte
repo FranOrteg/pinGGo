@@ -135,7 +135,7 @@
 
 <style>
   .input-area {
-    padding: 8px 16px 12px;
+    padding: 8px 16px 120px;
     flex-shrink: 0;
   }
 
