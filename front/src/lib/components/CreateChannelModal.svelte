@@ -33,6 +33,7 @@
 
 <svelte:window on:keydown={keydown} />
 
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <div
     class="modal-backdrop"
     on:click|self={() => dispatch('close')}
@@ -64,8 +65,7 @@
             pattern="[a-z0-9_\-]+"
             maxlength="80"
             required
-            autofocus
-          />
+¡          />
         </div>
       </div>
 

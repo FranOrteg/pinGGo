@@ -68,7 +68,6 @@
       class="search-input"
       bind:value={query}
       placeholder="Search by username or email…"
-      autofocus
       aria-label="Search users"
     />
 
