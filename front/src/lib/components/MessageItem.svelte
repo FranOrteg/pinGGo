@@ -3,6 +3,7 @@
   import { editMessage, deleteMessage, toggleReaction } from '$lib/stores/messages.js';
   import EmojiPicker from './EmojiPicker.svelte';
   import { isImage, formatFileSize } from '$lib/api/upload.js';
+  import { downloadFile } from '$lib/api/download.js';
 
   export let message;
   export let showHeader = true;
@@ -231,6 +232,7 @@
                 class="attachment__image"
                 loading="lazy"
               />
+              <span class="attachment__download" style='cursor:pointer'>↓ {downloadFile(message.file_url,message.file_name)}</span>
             {:else}
               <a class="attachment__file" href={message.file_url} target="_blank" rel="noopener noreferrer" download={message.file_name}>
                 <span class="attachment__file-icon">📎</span>

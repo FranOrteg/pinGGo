@@ -1,6 +1,6 @@
 import { api } from './index.js';
 
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']);
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/jpg']);
 
 export function isImage(fileType) {
   return IMAGE_TYPES.has(fileType);
