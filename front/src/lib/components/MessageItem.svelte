@@ -1,9 +1,14 @@
 <script>
-  import { authUser } from '$lib/stores/auth.js';
-  import { editMessage, deleteMessage, toggleReaction } from '$lib/stores/messages.js';
-  import EmojiPicker from './EmojiPicker.svelte';
-  import { isImage, formatFileSize } from '$lib/api/upload.js';
-  import { downloadFile } from '$lib/api/download.js';
+  import { authUser } from "$lib/stores/auth.js";
+  import {
+    editMessage,
+    deleteMessage,
+    toggleReaction,
+  } from "$lib/stores/messages.js";
+  import EmojiPicker from "./EmojiPicker.svelte";
+  import { isImage, formatFileSize } from "$lib/api/upload.js";
+  import { downloadFile } from "$lib/api/download.js";
+  import { getFileUrl } from '$lib/api/download.js';
 
   export let message;
   export let showHeader = true;
@@ -11,7 +16,7 @@
   let hovered = false;
   let showEmojiPicker = false;
   let editing = false;
-  let editContent = '';
+  let editContent = "";
   let editLoading = false;
   let deleteConfirm = false;
   let deleteTimer = null;
@@ -19,8 +24,16 @@
   $: isOwn = message.user_uuid === $authUser?.uuid;
   $: reactions = message.reactions ?? [];
 
-  function avatarColor(name = '') {
-    const colors = ['#5865F2','#57F287','#FEE75C','#EB459E','#ED4245','#4f8ef7','#9B59B6'];
+  function avatarColor(name = "") {
+    const colors = [
+      "#5865F2",
+      "#57F287",
+      "#FEE75C",
+      "#EB459E",
+      "#ED4245",
+      "#4f8ef7",
+      "#9B59B6",
+    ];
     let hash = 0;
     for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffffffff;
     return colors[Math.abs(hash) % colors.length];
@@ -28,7 +41,7 @@
 
   function formatTime(iso) {
     const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
   function startEdit() {
@@ -51,27 +64,34 @@
       await editMessage(message.uuid, editContent.trim());
       editing = false;
     } catch (e) {
-      console.error('[MessageItem] edit failed', e);
+      console.error("[MessageItem] edit failed", e);
     } finally {
       editLoading = false;
     }
   }
 
   function handleEditKeydown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
-    if (e.key === 'Escape') cancelEdit();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      saveEdit();
+    }
+    if (e.key === "Escape") cancelEdit();
   }
 
   function handleDeleteClick() {
     if (!deleteConfirm) {
       deleteConfirm = true;
       clearTimeout(deleteTimer);
-      deleteTimer = setTimeout(() => { deleteConfirm = false; }, 3000);
+      deleteTimer = setTimeout(() => {
+        deleteConfirm = false;
+      }, 3000);
       return;
     }
     clearTimeout(deleteTimer);
     deleteConfirm = false;
-    deleteMessage(message.uuid).catch((e) => console.error('[MessageItem] delete failed', e));
+    deleteMessage(message.uuid).catch((e) =>
+      console.error("[MessageItem] delete failed", e),
+    );
   }
 
   async function handleReaction(emoji) {
@@ -81,7 +101,7 @@
     try {
       await toggleReaction(message.uuid, emoji, isMine);
     } catch (e) {
-      console.error('[MessageItem] reaction failed', e);
+      console.error("[MessageItem] reaction failed", e);
     }
   }
 
@@ -95,7 +115,9 @@
 <div
   class="message"
   class:message--compact={!showHeader}
-  on:mouseenter={() => { hovered = true; }}
+  on:mouseenter={() => {
+    hovered = true;
+  }}
   on:mouseleave={onMouseLeave}
   role="listitem"
 >
@@ -103,15 +125,24 @@
   {#if hovered && !editing}
     <div class="message__actions">
       <div class="action-group">
-        <button class="action-btn" title="Add reaction" on:click|stopPropagation={() => showEmojiPicker = !showEmojiPicker}>😊</button>
+        <button
+          class="action-btn"
+          title="Add reaction"
+          on:click|stopPropagation={() => (showEmojiPicker = !showEmojiPicker)}
+          >😊</button
+        >
         {#if isOwn}
-          <button class="action-btn" title="Edit message" on:click={startEdit}>✏️</button>
+          <button class="action-btn" title="Edit message" on:click={startEdit}
+            >✏️</button
+          >
           <button
             class="action-btn"
             class:action-btn--danger={deleteConfirm}
-            title={deleteConfirm ? 'Click again to confirm delete' : 'Delete message'}
-            on:click={handleDeleteClick}
-          >{deleteConfirm ? '⚠️' : '🗑️'}</button>
+            title={deleteConfirm
+              ? "Click again to confirm delete"
+              : "Delete message"}đ
+            on:click={handleDeleteClick}>{deleteConfirm ? "⚠️" : "🗑️"}</button
+          >
         {/if}
       </div>
       {#if showEmojiPicker}
@@ -123,31 +154,44 @@
   {/if}
 
   {#if showHeader}
-    <div class="message__avatar" style="background: {avatarColor(message.username)}" aria-hidden="true">
-      {message.username?.[0]?.toUpperCase() ?? '?'}
+    <div
+      class="message__avatar"
+      style="background: {avatarColor(message.username)}"
+      aria-hidden="true"
+    >
+      {message.username?.[0]?.toUpperCase() ?? "?"}
     </div>
     <div class="message__body">
       <div class="message__header">
         <span class="message__username">{message.username}</span>
         <span class="message__time">{formatTime(message.created_at)}</span>
-        {#if message.edited_at}<span class="message__edited">(edited)</span>{/if}
+        {#if message.edited_at}<span class="message__edited">(edited)</span
+          >{/if}
       </div>
 
       {#if editing}
         <div class="edit-area">
+          <!-- svelte-ignore element_invalid_self_closing_tag -->
           <textarea
             class="edit-textarea"
             bind:value={editContent}
             on:keydown={handleEditKeydown}
             disabled={editLoading}
             rows={2}
-            autofocus
           />
           <div class="edit-footer">
             <span class="edit-hint">Enter to save · Esc to cancel</span>
             <div class="edit-btns">
-              <button class="btn-cancel" on:click={cancelEdit} disabled={editLoading}>Cancel</button>
-              <button class="btn-save" on:click={saveEdit} disabled={editLoading}>Save</button>
+              <button
+                class="btn-cancel"
+                on:click={cancelEdit}
+                disabled={editLoading}>Cancel</button
+              >
+              <button
+                class="btn-save"
+                on:click={saveEdit}
+                disabled={editLoading}>Save</button
+              >
             </div>
           </div>
         </div>
@@ -155,21 +199,31 @@
         {#if message.content}
           <p class="message__content">{message.content}</p>
         {/if}
-        {#if message.file_url}
+        {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
-              <img
-                src={message.file_url}
-                alt={message.file_name}
-                class="attachment__image"
-                loading="lazy"
-              />
+              {#await getFileUrl(message.uuid) then url}
+                <img
+                  src={url}
+                  alt={message.file_name}
+                  class="attachment__image"
+                  loading="lazy"
+                />
+              {/await}
             {:else}
-              <a class="attachment__file" href={message.file_url} target="_blank" rel="noopener noreferrer" download={message.file_name}>
+              <a
+                class="attachment__file"
+                href={message.file_key}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={message.file_name}
+              >
                 <span class="attachment__file-icon">📎</span>
                 <span class="attachment__file-info">
                   <span class="attachment__file-name">{message.file_name}</span>
-                  {#if message.file_size}<span class="attachment__file-size">{formatFileSize(message.file_size)}</span>{/if}
+                  {#if message.file_size}<span class="attachment__file-size"
+                      >{formatFileSize(message.file_size)}</span
+                    >{/if}
                 </span>
                 <span class="attachment__download">↓</span>
               </a>
@@ -194,51 +248,74 @@
         </div>
       {/if}
     </div>
-
   {:else}
     <!-- Compact (grouped) mode -->
     <span class="message__time-hover">{formatTime(message.created_at)}</span>
     <div class="message__body-compact">
       {#if editing}
         <div class="edit-area">
+          <!-- svelte-ignore element_invalid_self_closing_tag -->
           <textarea
             class="edit-textarea"
             bind:value={editContent}
             on:keydown={handleEditKeydown}
             disabled={editLoading}
             rows={2}
-            autofocus
           />
           <div class="edit-footer">
             <span class="edit-hint">Enter to save · Esc to cancel</span>
             <div class="edit-btns">
-              <button class="btn-cancel" on:click={cancelEdit} disabled={editLoading}>Cancel</button>
-              <button class="btn-save" on:click={saveEdit} disabled={editLoading}>Save</button>
+              <button
+                class="btn-cancel"
+                on:click={cancelEdit}
+                disabled={editLoading}>Cancel</button
+              >
+              <button
+                class="btn-save"
+                on:click={saveEdit}
+                disabled={editLoading}>Save</button
+              >
             </div>
           </div>
         </div>
       {:else}
         {#if message.content}
           <p class="message__content">
-            {message.content}{#if message.edited_at} <span class="message__edited">(edited)</span>{/if}
+            {message.content}{#if message.edited_at}
+              <span class="message__edited">(edited)</span>{/if}
           </p>
         {/if}
-        {#if message.file_url}
+        {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
               <img
-                src={message.file_url}
+                src={message.file_key}
                 alt={message.file_name}
                 class="attachment__image"
                 loading="lazy"
               />
-              <span class="attachment__download" style='cursor:pointer'>↓ {downloadFile(message.file_url,message.file_name)}</span>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span
+                class="attachment__download"
+                style="cursor:pointer"
+                on:click={() => downloadFile(message.uuid, message.file_name)}
+                >↓
+              </span>
             {:else}
-              <a class="attachment__file" href={message.file_url} target="_blank" rel="noopener noreferrer" download={message.file_name}>
+              <a
+                class="attachment__file"
+                href={message.file_key}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={message.file_name}
+              >
                 <span class="attachment__file-icon">📎</span>
                 <span class="attachment__file-info">
                   <span class="attachment__file-name">{message.file_name}</span>
-                  {#if message.file_size}<span class="attachment__file-size">{formatFileSize(message.file_size)}</span>{/if}
+                  {#if message.file_size}<span class="attachment__file-size"
+                      >{formatFileSize(message.file_size)}</span
+                    >{/if}
                 </span>
                 <span class="attachment__download">↓</span>
               </a>
@@ -276,7 +353,9 @@
     position: relative;
     transition: background 0.1s;
   }
-  .message:hover { background: rgba(255,255,255,0.03); }
+  .message:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
 
   /* ── Avatar ── */
   .message__avatar {
@@ -294,8 +373,14 @@
   }
 
   /* ── Body ── */
-  .message__body { flex: 1; min-width: 0; }
-  .message__body-compact { flex: 1; min-width: 0; }
+  .message__body {
+    flex: 1;
+    min-width: 0;
+  }
+  .message__body-compact {
+    flex: 1;
+    min-width: 0;
+  }
 
   .message__header {
     display: flex;
@@ -303,9 +388,20 @@
     gap: 8px;
     margin-bottom: 2px;
   }
-  .message__username { font-size: 14px; font-weight: 600; color: var(--color-text); }
-  .message__time { font-size: 11px; color: var(--color-text-muted); }
-  .message__edited { font-size: 11px; color: var(--color-text-muted); font-style: italic; }
+  .message__username {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+  .message__time {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+  .message__edited {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
 
   .message__content {
     font-size: 14px;
@@ -317,7 +413,9 @@
   }
 
   /* ── Compact ── */
-  .message--compact { padding-left: 62px; }
+  .message--compact {
+    padding-left: 62px;
+  }
   .message__time-hover {
     position: absolute;
     left: 16px;
@@ -331,7 +429,9 @@
     width: 36px;
     text-align: center;
   }
-  .message:hover .message__time-hover { opacity: 1; }
+  .message:hover .message__time-hover {
+    opacity: 1;
+  }
 
   /* ── Hover action bar ── */
   .message__actions {
@@ -360,9 +460,15 @@
     line-height: 1;
     transition: background 0.1s;
   }
-  .action-btn:hover { background: var(--color-border); }
-  .action-btn--danger { background: rgba(237, 66, 69, 0.15); }
-  .action-btn--danger:hover { background: rgba(237, 66, 69, 0.3); }
+  .action-btn:hover {
+    background: var(--color-border);
+  }
+  .action-btn--danger {
+    background: rgba(237, 66, 69, 0.15);
+  }
+  .action-btn--danger:hover {
+    background: rgba(237, 66, 69, 0.3);
+  }
 
   /* ── Emoji picker anchor ── */
   .emoji-picker-wrapper {
@@ -373,7 +479,9 @@
   }
 
   /* ── Edit area ── */
-  .edit-area { margin-top: 2px; }
+  .edit-area {
+    margin-top: 2px;
+  }
   .edit-textarea {
     width: 100%;
     background: var(--color-bg);
@@ -394,9 +502,16 @@
     justify-content: space-between;
     margin-top: 4px;
   }
-  .edit-hint { font-size: 11px; color: var(--color-text-muted); }
-  .edit-btns { display: flex; gap: 6px; }
-  .btn-save, .btn-cancel {
+  .edit-hint {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+  .edit-btns {
+    display: flex;
+    gap: 6px;
+  }
+  .btn-save,
+  .btn-cancel {
     font-size: 12px;
     border: none;
     border-radius: 4px;
@@ -404,9 +519,18 @@
     cursor: pointer;
     font-weight: 500;
   }
-  .btn-save { background: var(--color-accent); color: #fff; }
-  .btn-save:disabled { opacity: 0.6; cursor: default; }
-  .btn-cancel { background: var(--color-border); color: var(--color-text-muted); }
+  .btn-save {
+    background: var(--color-accent);
+    color: #fff;
+  }
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .btn-cancel {
+    background: var(--color-border);
+    color: var(--color-text-muted);
+  }
 
   /* ── Reactions ── */
   .reactions {
@@ -419,17 +543,21 @@
     display: flex;
     align-items: center;
     gap: 3px;
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1px 7px;
     font-size: 14px;
     cursor: pointer;
-    transition: background 0.1s, border-color 0.1s;
+    transition:
+      background 0.1s,
+      border-color 0.1s;
   }
-  .reaction-chip:hover { background: rgba(255,255,255,0.1); }
+  .reaction-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
   .reaction-chip--mine {
-    background: rgba(79,142,247,0.15);
+    background: rgba(79, 142, 247, 0.15);
     border-color: var(--color-accent);
   }
   .reaction-count {
@@ -439,7 +567,9 @@
   }
 
   /* ── Attachments ── */
-  .attachment { margin-top: 6px; }
+  .attachment {
+    margin-top: 6px;
+  }
   .attachment__image {
     max-width: 360px;
     max-height: 280px;
@@ -461,10 +591,33 @@
     max-width: 320px;
     transition: border-color 0.15s;
   }
-  .attachment__file:hover { border-color: var(--color-accent); }
-  .attachment__file-icon { font-size: 20px; flex-shrink: 0; }
-  .attachment__file-info { display: flex; flex-direction: column; min-width: 0; }
-  .attachment__file-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .attachment__file-size { font-size: 11px; color: var(--color-text-muted); }
-  .attachment__download { margin-left: auto; color: var(--color-accent); font-size: 16px; flex-shrink: 0; }
+  .attachment__file:hover {
+    border-color: var(--color-accent);
+  }
+  .attachment__file-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .attachment__file-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .attachment__file-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .attachment__file-size {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+  .attachment__download {
+    margin-left: auto;
+    color: var(--color-accent);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
 </style>

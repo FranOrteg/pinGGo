@@ -15,18 +15,21 @@ export function formatFileSize(bytes) {
 
 /**
  * Requests a presigned S3 PUT URL, uploads the file directly to S3,
- * and returns { fileUrl, fileName, fileSize, fileType }.
+ * and returns { fileKey, fileName, fileSize, fileType }.
  *
  * @param {File} file
  * @param {(progress: number) => void} [onProgress] — 0–100
  */
 export async function uploadFile(file, onProgress) {
-  const { uploadUrl, fileUrl } = await api.post('/upload/presign', {
+  const response = await api.post('/upload/presign', {
     fileName: file.name,
     fileType: file.type,
     fileSize: file.size,
   });
 
+  const { uploadUrl, fileKey } = response;
+
+  console.log(response);
   await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl, true);
@@ -47,7 +50,7 @@ export async function uploadFile(file, onProgress) {
   });
 
   return {
-    fileUrl,
+    fileKey,
     fileName: file.name,
     fileSize: file.size,
     fileType: file.type,

@@ -57,6 +57,7 @@
 
       if (pendingFile) {
         attachment = await uploadFile(pendingFile, (p) => (uploadProgress = p));
+        console.log('Attachment:', attachment);
       }
 
       sendMessage(channelId, content, attachment);

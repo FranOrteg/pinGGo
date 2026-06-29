@@ -60,5 +60,5 @@ export async function createPresignedUpload(req, res) {
   const uploadUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 300 });
   const fileUrl = `https://${config.s3.bucket}.s3.${config.s3.region}.amazonaws.com/${key}`;
 
-  res.json({ uploadUrl, fileUrl, key });
+  res.json({ uploadUrl, fileKey: key });
 }

@@ -59,10 +59,10 @@ CREATE TABLE IF NOT EXISTS messages (
   edited_at   DATETIME,
   deleted_at  DATETIME,          -- soft delete
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-  file_url    VARCHAR(1000),
   file_name VARCHAR(255),
   file_size  INT UNSIGNED,
   file_type VARCHAR(100),       -- for file messages
+  file_key VARCHAR(1024) NULL,
   INDEX idx_channel_cursor (channel_id, id),
   INDEX idx_user (user_id),
   FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,

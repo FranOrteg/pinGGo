@@ -7,9 +7,11 @@ import { api } from './index.js';
  * @param {string} fileName - The name of the file to download
  */
 
-export async function downloadFile(fileUrl, fileName) {
+export async function downloadFile(uuid, fileName) {
 
-  const response = await api.get('/download/presign', { params: { fileUrl } });
+  const response = await api.get('/download/presign', {
+    params: { uuid }
+  });
 
   const { downloadUrl } = response.data;
 
@@ -17,8 +19,16 @@ export async function downloadFile(fileUrl, fileName) {
   link.href = downloadUrl;
   link.download = fileName || '';
   link.style.display = 'none';
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export async function getFileUrl(messageId) {
+  const response = await api.get('/download/presign', {
+    params: { uuid: messageId }
+  });
+
+  return response.data.downloadUrl;
 }

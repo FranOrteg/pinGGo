@@ -21,6 +21,7 @@ export async function loadMessages(channelId, before = null) {
       : data.messages,
   }));
 
+  console.log(data.messages, "Data Messages");
   return data;
 }
 
