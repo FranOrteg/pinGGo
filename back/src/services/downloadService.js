@@ -19,7 +19,8 @@ export async function getFileFromDatabase(uuid) {
         throw new Error('UUID is required');
     }
 
-    const file = await queryOne('SELECT file_url,file_name FROM messages WHERE uuid = ?', [uuid]);
+    const file = await queryOne('SELECT file_key,file_name FROM messages WHERE uuid = ?', [uuid]);
+
 
     if(!file) {
         throw new Error('File not found');
@@ -35,12 +36,7 @@ export async function createPresignedDownload(uuid) {
         throw new Error('File not found');
     }
 
-    const url = new URL(file.file_url);
-
-
-    const key = decodeURIComponent(
-        url.pathname.replace(/^\/+/, '')
-    );
+    const key = file.file_key;
 
     const command = new GetObjectCommand({
         Bucket: config.s3.bucket,
