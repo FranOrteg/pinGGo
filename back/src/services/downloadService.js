@@ -1,6 +1,8 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import config from '../config/index.js';
+import { queryOne } from '../db/pool.js';
 
 
 function getS3Client() {

@@ -8,7 +8,7 @@
   import EmojiPicker from "./EmojiPicker.svelte";
   import { isImage, formatFileSize } from "$lib/api/upload.js";
   import { downloadFile } from "$lib/api/download.js";
-  import { getFileUrl } from '$lib/api/download.js';
+  import { getFileUrl } from "$lib/api/download.js";
 
   export let message;
   export let showHeader = true;
@@ -138,9 +138,9 @@
           <button
             class="action-btn"
             class:action-btn--danger={deleteConfirm}
-            title={deleteConfirm
-              ? "Click again to confirm delete"
-              : "Delete message"}đ
+            title="{deleteConfirm
+              ? 'Click again to confirm delete'
+              : 'Delete message'}đ"
             on:click={handleDeleteClick}>{deleteConfirm ? "⚠️" : "🗑️"}</button
           >
         {/if}
@@ -288,20 +288,22 @@
         {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
-              <img
-                src={message.file_key}
-                alt={message.file_name}
-                class="attachment__image"
-                loading="lazy"
-              />
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span
-                class="attachment__download"
-                style="cursor:pointer"
-                on:click={() => downloadFile(message.uuid, message.file_name)}
-                >↓
-              </span>
+              {#await getFileUrl(message.uuid) then url}
+                <img
+                  src={url}
+                  alt={message.file_name}
+                  class="attachment__image"
+                  loading="lazy"
+                />
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <span
+                  class="attachment__download"
+                  style="cursor:pointer"
+                  on:click={() => downloadFile(message.uuid, message.file_name)}
+                  >↓
+                </span>
+              {/await}
             {:else}
               <a
                 class="attachment__file"

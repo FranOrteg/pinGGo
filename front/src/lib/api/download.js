@@ -8,27 +8,21 @@ import { api } from './index.js';
  */
 
 export async function downloadFile(uuid, fileName) {
+  const response = await api.get(`/download/presign?uuid=${encodeURIComponent(uuid)}`);
 
-  const response = await api.get('/download/presign', {
-    params: { uuid }
-  });
-
-  const { downloadUrl } = response.data;
-
+  const { downloadUrl } = response;  
   const link = document.createElement('a');
   link.href = downloadUrl;
   link.download = fileName || '';
   link.style.display = 'none';
-
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  return downloadUrl;
 }
 
 export async function getFileUrl(messageId) {
-  const response = await api.get('/download/presign', {
-    params: { uuid: messageId }
-  });
-
-  return response.data.downloadUrl;
+  const response = await api.get(`/download/presign?uuid=${encodeURIComponent(messageId)}`);
+  return response.downloadUrl;
 }

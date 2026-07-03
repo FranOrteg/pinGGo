@@ -4,6 +4,7 @@ import usersRouter from './users/router.js';
 import channelsRouter from './channels/router.js';
 import messagesRouter from './messages/router.js';
 import uploadRouter from './upload/router.js';
+import downloadRouter from './download/router.js';
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use('/users', usersRouter);
 router.use('/channels', channelsRouter);
 router.use('/messages', messagesRouter);
 router.use('/upload', uploadRouter);
+router.use('/download', downloadRouter);
 
 export default router;
