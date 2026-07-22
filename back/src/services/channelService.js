@@ -4,7 +4,12 @@ import { query, queryOne } from '../db/pool.js';
 export async function getMyChannels(req, res, next) {
   try {
     const channels = await query(
-      `SELECT c.uuid, c.name, c.type, c.description, c.is_private, c.created_at,
+      `SELECT c.uuid,
+              CASE WHEN c.type = 'direct'
+                   THEN other_u.username
+                   ELSE c.name
+              END AS name,
+              c.type, c.description, c.is_private, c.created_at,
               (SELECT COUNT(*) FROM messages m
                WHERE m.channel_id = c.id
                  AND m.deleted_at IS NULL
@@ -13,6 +18,8 @@ export async function getMyChannels(req, res, next) {
        FROM channels c
        JOIN channel_members cm ON cm.channel_id = c.id
        JOIN users u ON u.id = cm.user_id
+       LEFT JOIN channel_members other_cm ON other_cm.channel_id = c.id AND other_cm.user_id != u.id
+       LEFT JOIN users other_u ON other_u.id = other_cm.user_id
        WHERE u.uuid = ?
        ORDER BY c.created_at DESC`,
       [req.user.sub]
@@ -73,8 +80,16 @@ export async function createChannel(req, res, next) {
       );
       if (existing) {
         const ch = await queryOne(
-          'SELECT uuid, name, type, is_private, description FROM channels WHERE uuid = ?',
-          [existing.uuid]
+          `SELECT c.uuid, c.type, c.is_private, c.description,
+                  CASE WHEN c.type = 'direct'
+                       THEN other_u.username
+                       ELSE c.name
+                  END AS name
+           FROM channels c
+           LEFT JOIN channel_members other_cm ON other_cm.channel_id = c.id
+           LEFT JOIN users other_u ON other_u.id = other_cm.user_id AND other_u.uuid != ?
+           WHERE c.uuid = ?`,
+          [req.user.sub, existing.uuid]
         );
         return res.json({ channel: ch });
       }
@@ -104,7 +119,18 @@ export async function createChannel(req, res, next) {
     }
 
     res.status(201).json({
-      channel: { uuid: channel.uuid, name: channelName, description, type, is_private: isPrivate ? 1 : 0 },
+      channel: {
+        uuid: channel.uuid,
+        name: isDirect ? (memberUuids[0] ? (await queryOne(
+          `SELECT u.username FROM channel_members cm
+           JOIN users u ON u.id = cm.user_id
+           WHERE cm.channel_id = ? AND u.uuid != ?`,
+          [channel.id, req.user.sub]
+        ))?.username ?? null : null) : channelName,
+        description,
+        type,
+        is_private: isPrivate ? 1 : 0,
+      },
     });
   } catch (err) {
     next(err);
