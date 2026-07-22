@@ -20,9 +20,23 @@
   let editLoading = false;
   let deleteConfirm = false;
   let deleteTimer = null;
+  let imageUrl = null;
+  let loadedUuid = null;
 
   $: isOwn = message.user_uuid === $authUser?.uuid;
   $: reactions = message.reactions ?? [];
+  $: hasImage = message.file_key && isImage(message.file_type);
+
+  function loadImage(uuid) {
+    if (!uuid || uuid.startsWith('temp-') || loadedUuid === uuid) return;
+    loadedUuid = uuid;
+    imageUrl = null;
+    getFileUrl(uuid).then((url) => {
+      if (loadedUuid === uuid) imageUrl = url;
+    }).catch(() => {});
+  }
+
+  $: if (hasImage) loadImage(message.uuid);
 
   function avatarColor(name = "") {
     const colors = [
@@ -202,14 +216,14 @@
         {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
-              {#await getFileUrl(message.uuid) then url}
+              {#if imageUrl}
                 <img
-                  src={url}
+                  src={imageUrl}
                   alt={message.file_name}
                   class="attachment__image"
                   loading="lazy"
                 />
-              {/await}
+              {/if}
             {:else}
               <a
                 class="attachment__file"
@@ -288,9 +302,9 @@
         {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
-              {#await getFileUrl(message.uuid) then url}
+              {#if imageUrl}
                 <img
-                  src={url}
+                  src={imageUrl}
                   alt={message.file_name}
                   class="attachment__image"
                   loading="lazy"
@@ -303,7 +317,7 @@
                   on:click={() => downloadFile(message.uuid, message.file_name)}
                   >↓
                 </span>
-              {/await}
+              {/if}
             {:else}
               <a
                 class="attachment__file"
