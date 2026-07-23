@@ -12,6 +12,10 @@
 
   let ready = false;
 
+  $: if (ready && !$isAuthenticated) {
+    goto('/login', { replaceState: true });
+  }
+
   onMount(() => {
     let cleanup;
     let unsub;

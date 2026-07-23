@@ -52,6 +52,7 @@ export async function refreshToken() {
 function _applySession({ user, accessToken: token }) {
   authUser.set(user);
   accessToken.set(token);
+  authReady.set(true);
   setAccessToken(token);
   createSocketClient(token);
 }
