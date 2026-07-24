@@ -49,7 +49,7 @@
               class:nav-item--active={$activeChannelId === ch.uuid}
               on:click={() => setActiveChannel(ch.uuid)}
             >
-              <span class="nav-item__hash">{ch.type === 'private' ? '🔒' : '#'}</span>
+              <span class="nav-item__hash">#</span>
               <span class="nav-item__name">{ch.name}</span>
               {#if ($unread[ch.uuid] ?? 0) > 0}
                 <span class="unread-badge">{$unread[ch.uuid] > 99 ? '99+' : $unread[ch.uuid]}</span>
@@ -250,7 +250,7 @@
   }
 
   .sidebar__footer {
-    padding: 0px 16px 124px;
+    padding: 0px 16px 30px;
     display: flex;
     align-items: center;
     gap: 8px;
