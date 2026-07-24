@@ -11,9 +11,6 @@
       <span class="channel-header__prefix">{channel.type === 'channel' ? '#' : '💬'}</span>
       <span class="channel-header__name">{channel.name ?? 'Direct Message'}</span>
     </div>
-    {#if channel.description}
-      <p class="channel-header__desc">{channel.description}</p>
-    {/if}
   </header>
 
   <MessageList {channel} />
@@ -56,13 +53,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .channel-header__desc {
-    font-size: 12px;
-    color: var(--color-text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 40%;
   }
 </style>
