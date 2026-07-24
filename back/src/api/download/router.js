@@ -9,11 +9,11 @@ router.get('/presign', authenticate, async (req, res) => {
 
         const { uuid } = req.query;
 
-        const file = await createPresignedDownload(uuid);
+        const file = await createPresignedDownload(uuid, req.user.sub);
         
         res.json(file);
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        res.status(error.status || 400).json({ error: error.message });
     }
 });
 

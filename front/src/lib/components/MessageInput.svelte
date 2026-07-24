@@ -56,7 +56,7 @@
       let attachment = null;
 
       if (pendingFile) {
-        attachment = await uploadFile(pendingFile, (p) => (uploadProgress = p));
+        attachment = await uploadFile(pendingFile, channelId, (p) => (uploadProgress = p));
         console.log('Attachment:', attachment);
       }
 

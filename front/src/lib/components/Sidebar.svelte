@@ -10,7 +10,9 @@
   let showCreateChannel = false;
   let showUserSearch = false;
 
-  $: publicChannels = $channels.filter((c) => c.type === 'channel');
+  // Both public ('channel') and private channels the user belongs to are listed here.
+  // Visibility/access itself is enforced backend-side via channel_members.
+  $: channelsList = $channels.filter((c) => c.type === 'channel' || c.type === 'private');
   $: dms = $channels.filter((c) => c.type === 'direct' || c.type === 'group');
 
   function avatarColor(name = '') {
@@ -40,14 +42,14 @@
         >+</button>
       </div>
       <ul class="nav-list" role="list">
-        {#each publicChannels as ch (ch.uuid)}
+        {#each channelsList as ch (ch.uuid)}
           <li>
             <button
               class="nav-item"
               class:nav-item--active={$activeChannelId === ch.uuid}
               on:click={() => setActiveChannel(ch.uuid)}
             >
-              <span class="nav-item__hash">#</span>
+              <span class="nav-item__hash">{ch.type === 'private' ? '🔒' : '#'}</span>
               <span class="nav-item__name">{ch.name}</span>
               {#if ($unread[ch.uuid] ?? 0) > 0}
                 <span class="unread-badge">{$unread[ch.uuid] > 99 ? '99+' : $unread[ch.uuid]}</span>

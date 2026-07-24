@@ -21,21 +21,39 @@ export async function getFileFromDatabase(uuid) {
         throw new Error('UUID is required');
     }
 
-    const file = await queryOne('SELECT file_key,file_name FROM messages WHERE uuid = ?', [uuid]);
+    const file = await queryOne('SELECT file_key, file_name, channel_id FROM messages WHERE uuid = ?', [uuid]);
 
 
-    if(!file) {
+    if(!file || !file.file_key) {
         throw new Error('File not found');
     }
 
     return file;
 };
 
-export async function createPresignedDownload(uuid) {
+/** Verifies the requesting user belongs to the channel that owns the file. */
+async function assertChannelMembership(channelId, userUuid) {
+    const member = await queryOne(
+        `SELECT 1 FROM channel_members cm
+         JOIN users u ON u.id = cm.user_id
+         WHERE cm.channel_id = ? AND u.uuid = ?`,
+        [channelId, userUuid]
+    );
+    return !!member;
+}
+
+export async function createPresignedDownload(uuid, userUuid) {
     const file = await getFileFromDatabase(uuid);
 
     if (!file) {
         throw new Error('File not found');
+    }
+
+    const hasAccess = await assertChannelMembership(file.channel_id, userUuid);
+    if (!hasAccess) {
+        const err = new Error('Access denied');
+        err.status = 403;
+        throw err;
     }
 
     const key = file.file_key;

@@ -18,11 +18,12 @@ export async function loadChannels() {
   return data.channels;
 }
 
-export async function createChannel(name, description = '', isPrivate = false) {
+export async function createChannel(name, description = '', isPrivate = false, memberUuids = []) {
   const data = await api.post('/channels', {
     name,
     description,
     type: isPrivate ? 'private' : 'channel',
+    memberUuids,
   });
   channels.update((list) => [...list, data.channel]);
   return data.channel;

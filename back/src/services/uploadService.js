@@ -3,6 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import config from '../config/index.js';
+import { queryOne } from '../db/pool.js';
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -29,10 +30,10 @@ function getS3Client() {
 }
 
 export async function createPresignedUpload(req, res) {
-  const { fileName, fileType, fileSize } = req.body;
+  const { fileName, fileType, fileSize, channelId } = req.body;
 
-  if (!fileName || !fileType || !fileSize) {
-    return res.status(400).json({ error: 'fileName, fileType and fileSize are required' });
+  if (!fileName || !fileType || !fileSize || !channelId) {
+    return res.status(400).json({ error: 'fileName, fileType, fileSize and channelId are required' });
   }
 
   if (!ALLOWED_MIME_TYPES.has(fileType)) {
@@ -46,6 +47,16 @@ export async function createPresignedUpload(req, res) {
   if (!config.s3.bucket) {
     return res.status(503).json({ error: 'S3 not configured' });
   }
+
+  // Only channel members are allowed to upload attachments into that channel
+  const membership = await queryOne(
+    `SELECT 1 FROM channel_members cm
+     JOIN channels c ON c.id = cm.channel_id
+     JOIN users u ON u.id = cm.user_id
+     WHERE c.uuid = ? AND u.uuid = ?`,
+    [channelId, req.user.sub]
+  );
+  if (!membership) return res.status(403).json({ error: 'Not a member of this channel' });
 
   const ext = path.extname(fileName).toLowerCase();
   const key = `attachments/${req.user.sub}/${uuidv4()}${ext}`;

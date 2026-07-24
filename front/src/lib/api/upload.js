@@ -18,13 +18,15 @@ export function formatFileSize(bytes) {
  * and returns { fileKey, fileName, fileSize, fileType }.
  *
  * @param {File} file
+ * @param {string} channelId - channel the attachment belongs to (backend verifies membership)
  * @param {(progress: number) => void} [onProgress] — 0–100
  */
-export async function uploadFile(file, onProgress) {
+export async function uploadFile(file, channelId, onProgress) {
   const response = await api.post('/upload/presign', {
     fileName: file.name,
     fileType: file.type,
     fileSize: file.size,
+    channelId,
   });
 
   const { uploadUrl, fileKey } = response;

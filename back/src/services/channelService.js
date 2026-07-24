@@ -3,10 +3,25 @@ import { query, queryOne } from '../db/pool.js';
 
 export async function getMyChannels(req, res, next) {
   try {
+    // Self-heal: public channels are open to every user. Backfill any membership rows
+    // the current user is still missing (e.g. channels created before they registered,
+    // or before this user was ever added) so visibility/access stays driven by
+    // channel_members without needing to touch every other endpoint.
+    await query(
+      `INSERT IGNORE INTO channel_members (channel_id, user_id)
+       SELECT c.id, u.id FROM channels c
+       JOIN users u ON u.uuid = ?
+       WHERE c.type = 'channel'`,
+      [req.user.sub]
+    );
+
     const channels = await query(
       `SELECT c.uuid,
               CASE WHEN c.type = 'direct'
-                   THEN other_u.username
+                   THEN (SELECT u2.username FROM channel_members cm2
+                         JOIN users u2 ON u2.id = cm2.user_id
+                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
+                         LIMIT 1)
                    ELSE c.name
               END AS name,
               c.type, c.description, c.is_private, c.created_at,
@@ -18,8 +33,6 @@ export async function getMyChannels(req, res, next) {
        FROM channels c
        JOIN channel_members cm ON cm.channel_id = c.id
        JOIN users u ON u.id = cm.user_id
-       LEFT JOIN channel_members other_cm ON other_cm.channel_id = c.id AND other_cm.user_id != u.id
-       LEFT JOIN users other_u ON other_u.id = other_cm.user_id
        WHERE u.uuid = ?
        ORDER BY c.created_at DESC`,
       [req.user.sub]
@@ -63,6 +76,11 @@ export async function createChannel(req, res, next) {
     const isDirect = type === 'direct' || type === 'group';
     if (!isDirect && !name) return res.status(400).json({ error: 'name is required' });
 
+    // A channel is private when explicitly flagged or when type is 'private'.
+    // Public channels (type 'channel') are open to every user in the workspace.
+    const isPrivateFinal = !isDirect && (isPrivate === true || type === 'private');
+    const finalType = isDirect ? type : (isPrivateFinal ? 'private' : 'channel');
+
     const creator = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
     if (!creator) return res.status(404).json({ error: 'User not found' });
 
@@ -82,12 +100,13 @@ export async function createChannel(req, res, next) {
         const ch = await queryOne(
           `SELECT c.uuid, c.type, c.is_private, c.description,
                   CASE WHEN c.type = 'direct'
-                       THEN other_u.username
+                       THEN (SELECT u2.username FROM channel_members cm2
+                             JOIN users u2 ON u2.id = cm2.user_id
+                             WHERE cm2.channel_id = c.id AND cm2.user_id != ?
+                             LIMIT 1)
                        ELSE c.name
                   END AS name
            FROM channels c
-           LEFT JOIN channel_members other_cm ON other_cm.channel_id = c.id
-           LEFT JOIN users other_u ON other_u.id = other_cm.user_id AND other_u.uuid != ?
            WHERE c.uuid = ?`,
           [req.user.sub, existing.uuid]
         );
@@ -99,7 +118,7 @@ export async function createChannel(req, res, next) {
     const uuid = uuidv4();
     await query(
       'INSERT INTO channels (uuid, name, description, type, is_private, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuid, channelName, description, type, isPrivate ? 1 : 0, creator.id]
+      [uuid, channelName, description, finalType, isPrivateFinal ? 1 : 0, creator.id]
     );
     const channel = await queryOne('SELECT id, uuid FROM channels WHERE uuid = ?', [uuid]);
 
@@ -118,6 +137,17 @@ export async function createChannel(req, res, next) {
       }
     }
 
+    // Public channels are for everyone: every existing user becomes a member automatically
+    // (new users are backfilled lazily in getMyChannels). This keeps channel_members as the
+    // single source of truth for visibility, messaging and attachment authorization.
+    if (finalType === 'channel') {
+      await query(
+        `INSERT IGNORE INTO channel_members (channel_id, user_id, role)
+         SELECT ?, id, 'member' FROM users WHERE id != ?`,
+        [channel.id, creator.id]
+      );
+    }
+
     res.status(201).json({
       channel: {
         uuid: channel.uuid,
@@ -128,8 +158,8 @@ export async function createChannel(req, res, next) {
           [channel.id, req.user.sub]
         ))?.username ?? null : null) : channelName,
         description,
-        type,
-        is_private: isPrivate ? 1 : 0,
+        type: finalType,
+        is_private: isPrivateFinal ? 1 : 0,
       },
     });
   } catch (err) {
