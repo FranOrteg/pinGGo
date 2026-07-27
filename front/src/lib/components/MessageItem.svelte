@@ -38,6 +38,14 @@
 
   $: if (hasImage) loadImage(message.uuid);
 
+  async function handleAttachmentDownload() {
+    try {
+      await downloadFile(message.uuid, message.file_name);
+    } catch (error) {
+      console.error("[MessageItem] attachment download failed", error);
+    }
+  }
+
   function avatarColor(name = "") {
     const colors = [
       "#5865F2",
@@ -225,12 +233,10 @@
                 />
               {/if}
             {:else}
-              <a
+              <button
+                type="button"
                 class="attachment__file"
-                href={message.file_key}
-                target="_blank"
-                rel="noopener noreferrer"
-                download={message.file_name}
+                on:click={handleAttachmentDownload}
               >
                 <span class="attachment__file-icon">📎</span>
                 <span class="attachment__file-info">
@@ -240,7 +246,7 @@
                     >{/if}
                 </span>
                 <span class="attachment__download">↓</span>
-              </a>
+              </button>
             {/if}
           </div>
         {/if}
@@ -319,12 +325,10 @@
                 </span>
               {/if}
             {:else}
-              <a
+              <button
+                type="button"
                 class="attachment__file"
-                href={message.file_key}
-                target="_blank"
-                rel="noopener noreferrer"
-                download={message.file_name}
+                on:click={handleAttachmentDownload}
               >
                 <span class="attachment__file-icon">📎</span>
                 <span class="attachment__file-info">
@@ -334,7 +338,7 @@
                     >{/if}
                 </span>
                 <span class="attachment__download">↓</span>
-              </a>
+              </button>
             {/if}
           </div>
         {/if}
@@ -606,6 +610,9 @@
     color: var(--color-text);
     max-width: 320px;
     transition: border-color 0.15s;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
   }
   .attachment__file:hover {
     border-color: var(--color-accent);
