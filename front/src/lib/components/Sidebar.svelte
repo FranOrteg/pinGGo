@@ -6,6 +6,7 @@
   import PresenceDot from './PresenceDot.svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
   import UserSearchModal from './UserSearchModal.svelte';
+  import UserAvatar from './UserAvatar.svelte';
   import { getAvatarUrl, uploadAvatar } from '$lib/api/avatar.js';
 
   let showCreateChannel = false;
@@ -118,8 +119,15 @@
               on:click={() => setActiveChannel(dm.uuid)}
             >
               <span class="nav-item__dm-dot">
-                <PresenceDot status={$presence[dm.uuid] ?? 'offline'} />
+                <PresenceDot status={$presence[dm.dm_user_uuid] ?? dm.dm_status ?? 'offline'} />
               </span>
+              <UserAvatar
+                userUuid={dm.dm_user_uuid}
+                avatarKey={dm.dm_avatar_url}
+                name={dm.name ?? ''}
+                size="22px"
+                radius="6px"
+              />
               <span class="nav-item__name">{dm.name ?? 'Unknown'}</span>
               {#if ($unread[dm.uuid] ?? 0) > 0}
                 <span class="unread-badge">{$unread[dm.uuid] > 99 ? '99+' : $unread[dm.uuid]}</span>

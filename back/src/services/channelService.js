@@ -24,6 +24,24 @@ export async function getMyChannels(req, res, next) {
                          LIMIT 1)
                    ELSE c.name
               END AS name,
+              CASE WHEN c.type = 'direct'
+                   THEN (SELECT u2.uuid FROM channel_members cm2
+                         JOIN users u2 ON u2.id = cm2.user_id
+                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
+                         LIMIT 1)
+              END AS dm_user_uuid,
+              CASE WHEN c.type = 'direct'
+                   THEN (SELECT u2.avatar_url FROM channel_members cm2
+                         JOIN users u2 ON u2.id = cm2.user_id
+                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
+                         LIMIT 1)
+              END AS dm_avatar_url,
+              CASE WHEN c.type = 'direct'
+                   THEN (SELECT u2.status FROM channel_members cm2
+                         JOIN users u2 ON u2.id = cm2.user_id
+                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
+                         LIMIT 1)
+              END AS dm_status,
               c.type, c.description, c.is_private, c.created_at,
               (SELECT COUNT(*) FROM messages m
                WHERE m.channel_id = c.id
@@ -105,10 +123,22 @@ export async function createChannel(req, res, next) {
                              WHERE cm2.channel_id = c.id AND cm2.user_id != ?
                              LIMIT 1)
                        ELSE c.name
-                  END AS name
+                  END AS name,
+                  CASE WHEN c.type = 'direct'
+                       THEN (SELECT u2.uuid FROM channel_members cm2
+                             JOIN users u2 ON u2.id = cm2.user_id
+                             WHERE cm2.channel_id = c.id AND u2.uuid != ?
+                             LIMIT 1)
+                  END AS dm_user_uuid,
+                  CASE WHEN c.type = 'direct'
+                       THEN (SELECT u2.avatar_url FROM channel_members cm2
+                             JOIN users u2 ON u2.id = cm2.user_id
+                             WHERE cm2.channel_id = c.id AND u2.uuid != ?
+                             LIMIT 1)
+                  END AS dm_avatar_url
            FROM channels c
            WHERE c.uuid = ?`,
-          [req.user.sub, existing.uuid]
+          [req.user.sub, req.user.sub, req.user.sub, existing.uuid]
         );
         return res.json({ channel: ch });
       }
@@ -160,6 +190,10 @@ export async function createChannel(req, res, next) {
         description,
         type: finalType,
         is_private: isPrivateFinal ? 1 : 0,
+        dm_user_uuid: type === 'direct' ? memberUuids[0] ?? null : null,
+        dm_avatar_url: type === 'direct' && memberUuids[0]
+          ? (await queryOne('SELECT avatar_url FROM users WHERE uuid = ?', [memberUuids[0]]))?.avatar_url ?? null
+          : null,
       },
     });
   } catch (err) {
