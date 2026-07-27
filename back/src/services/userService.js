@@ -39,7 +39,13 @@ export async function updateMyProfile(req, res, next) {
     const params = [];
 
     if (username) { fields.push('username = ?'); params.push(username); }
-    if (avatarUrl) { fields.push('avatar_url = ?'); params.push(avatarUrl); }
+    if (avatarUrl) {
+      if (avatarUrl.startsWith('avatars/') && !avatarUrl.startsWith(`avatars/${req.user.sub}/`)) {
+        return res.status(403).json({ error: 'Invalid avatar key' });
+      }
+      fields.push('avatar_url = ?');
+      params.push(avatarUrl);
+    }
 
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
 

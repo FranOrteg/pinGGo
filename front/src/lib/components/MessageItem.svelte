@@ -9,6 +9,7 @@
   import { isImage, formatFileSize } from "$lib/api/upload.js";
   import { downloadFile } from "$lib/api/download.js";
   import { getFileUrl } from "$lib/api/download.js";
+  import { getAvatarUrl } from "$lib/api/avatar.js";
 
   export let message;
   export let showHeader = true;
@@ -22,6 +23,8 @@
   let deleteTimer = null;
   let imageUrl = null;
   let loadedUuid = null;
+  let avatarUrl = null;
+  let loadedAvatarKey = null;
 
   $: isOwn = message.user_uuid === $authUser?.uuid;
   $: reactions = message.reactions ?? [];
@@ -37,6 +40,18 @@
   }
 
   $: if (hasImage) loadImage(message.uuid);
+
+  function loadAvatar(userUuid, avatarKey) {
+    const cacheKey = `${userUuid}:${avatarKey ?? ''}`;
+    if (!userUuid || !avatarKey || loadedAvatarKey === cacheKey) return;
+    loadedAvatarKey = cacheKey;
+    avatarUrl = null;
+    getAvatarUrl(userUuid, avatarKey).then((url) => {
+      if (loadedAvatarKey === cacheKey) avatarUrl = url;
+    }).catch(() => {});
+  }
+
+  $: loadAvatar(message.user_uuid, message.avatar_url);
 
   async function handleAttachmentDownload() {
     try {
@@ -176,12 +191,16 @@
   {/if}
 
   {#if showHeader}
-    <div
-      class="message__avatar"
-      style="background: {avatarColor(message.username)}"
-      aria-hidden="true"
-    >
-      {message.username?.[0]?.toUpperCase() ?? "?"}
+      <div
+        class="message__avatar"
+        style="background: {avatarColor(message.username)}"
+        aria-hidden="true"
+      >
+      {#if avatarUrl}
+        <img src={avatarUrl} alt="" />
+      {:else}
+        {message.username?.[0]?.toUpperCase() ?? "?"}
+      {/if}
     </div>
     <div class="message__body">
       <div class="message__header">
@@ -390,6 +409,12 @@
     color: #fff;
     flex-shrink: 0;
     margin-top: 2px;
+    overflow: hidden;
+  }
+  .message__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   /* ── Body ── */

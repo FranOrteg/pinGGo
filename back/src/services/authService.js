@@ -66,7 +66,7 @@ export async function login(req, res, next) {
     }
 
     const user = await queryOne(
-      'SELECT id, uuid, username, email, password_hash FROM users WHERE email = ?',
+      'SELECT id, uuid, username, email, avatar_url, status, password_hash FROM users WHERE email = ?',
       [email]
     );
     // Use a constant-time check even on "not found" to avoid user enumeration

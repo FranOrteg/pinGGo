@@ -6,9 +6,14 @@
   import PresenceDot from './PresenceDot.svelte';
   import CreateChannelModal from './CreateChannelModal.svelte';
   import UserSearchModal from './UserSearchModal.svelte';
+  import { getAvatarUrl, uploadAvatar } from '$lib/api/avatar.js';
 
   let showCreateChannel = false;
   let showUserSearch = false;
+  let avatarUrl = null;
+  let loadedAvatarKey = null;
+  let avatarUploading = false;
+  let avatarError = '';
 
   // Both public ('channel') and private channels the user belongs to are listed here.
   // Visibility/access itself is enforced backend-side via channel_members.
@@ -20,6 +25,37 @@
     let hash = 0;
     for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffffffff;
     return colors[Math.abs(hash) % colors.length];
+  }
+
+  $: {
+    const user = $authUser;
+    const cacheKey = user ? `${user.uuid}:${user.avatar_url ?? ''}` : null;
+    if (!cacheKey || !user.avatar_url) {
+      avatarUrl = null;
+      loadedAvatarKey = cacheKey;
+    } else if (loadedAvatarKey !== cacheKey) {
+      loadedAvatarKey = cacheKey;
+      avatarUrl = null;
+      getAvatarUrl(user.uuid, user.avatar_url).then((url) => {
+        if (loadedAvatarKey === cacheKey) avatarUrl = url;
+      }).catch(() => {});
+    }
+  }
+
+  async function handleAvatarChange(event) {
+    const [file] = event.currentTarget.files;
+    if (!file) return;
+    avatarUploading = true;
+    avatarError = '';
+    try {
+      const user = await uploadAvatar(file);
+      authUser.set(user);
+    } catch (error) {
+      avatarError = error.message || 'Could not upload profile photo';
+    } finally {
+      avatarUploading = false;
+      event.currentTarget.value = '';
+    }
   }
 </script>
 
@@ -101,13 +137,18 @@
   {#if $authUser}
     <div class="sidebar__footer">
       <div class="user-chip">
-        <div
+        <label
           class="user-avatar"
           style="background: {avatarColor($authUser.username)}"
-          aria-hidden="true"
+          title="Change profile photo"
         >
-          {$authUser.username[0].toUpperCase()}
-        </div>
+          <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" on:change={handleAvatarChange} disabled={avatarUploading} />
+          {#if avatarUrl}
+            <img src={avatarUrl} alt="Profile photo of {$authUser.username}" />
+          {:else}
+            {$authUser.username[0].toUpperCase()}
+          {/if}
+        </label>
         <div class="user-info">
           <span class="user-name">{$authUser.username}</span>
           <span class="user-status">
@@ -120,6 +161,7 @@
         ↪
       </button>
     </div>
+    {#if avatarError}<p class="avatar-error">{avatarError}</p>{/if}
   {/if}
 </aside>
 
@@ -274,6 +316,20 @@
     font-weight: 700;
     color: #fff;
     flex-shrink: 0;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+  }
+  .user-avatar input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .user-info {
     display: flex;
@@ -309,4 +365,5 @@
     flex-shrink: 0;
   }
   .logout-btn:hover { color: var(--color-text); background: var(--color-border); }
+  .avatar-error { margin: -22px 16px 8px; color: #f87171; font-size: 11px; }
 </style>
