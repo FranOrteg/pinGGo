@@ -64,6 +64,17 @@ export async function getMyChannels(req, res, next) {
 export async function getChannel(req, res, next) {
   try {
     const { channelId } = req.params;
+
+    // Public channels include every workspace user. Backfill membership here as
+    // well so the member list remains complete even for users created later.
+    await query(
+      `INSERT IGNORE INTO channel_members (channel_id, user_id)
+       SELECT c.id, u.id FROM channels c
+       JOIN users u
+       WHERE c.uuid = ? AND c.type = 'channel'`,
+      [channelId]
+    );
+
     const channel = await queryOne(
       `SELECT c.uuid, c.name, c.type, c.is_private, c.created_at
        FROM channels c
