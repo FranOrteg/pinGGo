@@ -650,8 +650,7 @@
     background: rgba(255, 255, 255, 0.1);
   }
   .reaction-chip--mine {
-    background: rgba(79, 142, 247, 0.15);
-    border-color: var(--color-accent);
+    background: rgba(255, 255, 255, 0.1);
   }
   .reaction-count {
     font-size: 12px;
