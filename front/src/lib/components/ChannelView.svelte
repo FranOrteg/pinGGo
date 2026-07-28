@@ -80,7 +80,7 @@
   }
 
   .channel-header {
-    height: 48px;
+    height: 44px;
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border);
     display: flex;
@@ -106,7 +106,7 @@
     width: 18px;
     height: 18px;
     fill: currentColor;
-    margin-right: 12px;
+    margin-right: 4px;
   }
   .channel-header__name {
     font-size: 15px;
@@ -116,7 +116,31 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .members-button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--color-border); border-radius: 6px; padding: 5px 9px; background: transparent; color: var(--color-text-muted); cursor: pointer; font-size: 13px; }
-  .members-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .members-button:hover { border-color: var(--color-accent); color: var(--color-text); }
+  .members-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 4px 8px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    transition: border-color 0.15s ease-out, color 0.15s ease-out, background 0.15s ease-out;
+  }
+  .members-button svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .members-button:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+    background: rgba(79, 142, 247, 0.08);
+  }
 </style>

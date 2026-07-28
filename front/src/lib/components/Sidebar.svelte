@@ -76,7 +76,9 @@
           on:click={() => (showCreateChannel = true)}
           title="Create channel"
           aria-label="Create channel"
-        >+</button>
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
       </div>
       <ul class="nav-list" role="list">
         {#each channelsList as ch (ch.uuid)}
@@ -86,7 +88,9 @@
               class:nav-item--active={$activeChannelId === ch.uuid}
               on:click={() => setActiveChannel(ch.uuid)}
             >
-              <span class="nav-item__hash">#</span>
+              <span class="nav-item__hash">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4.5 3l2 10M9.5 3l2 10M3 6.5h10M3 9.5h10"/></svg>
+              </span>
               <span class="nav-item__name">{ch.name}</span>
               {#if ($unread[ch.uuid] ?? 0) > 0}
                 <span class="unread-badge">{$unread[ch.uuid] > 99 ? '99+' : $unread[ch.uuid]}</span>
@@ -108,7 +112,9 @@
           on:click={() => (showUserSearch = true)}
           title="New direct message"
           aria-label="New direct message"
-        >+</button>
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
       </div>
       <ul class="nav-list" role="list">
         {#each dms as dm (dm.uuid)}
@@ -166,7 +172,7 @@
         </div>
       </div>
       <button class="logout-btn" on:click={logout} title="Sign out" aria-label="Sign out">
-        ↪
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2H4a1 1 0 00-1 1v10a1 1 0 001 1h2M11 11l3-3-3-3M14 8H6"/></svg>
       </button>
     </div>
     {#if avatarError}<p class="avatar-error">{avatarError}</p>{/if}
@@ -199,7 +205,7 @@
   }
 
   .sidebar__header {
-    height: 48px;
+    height: 44px;
     display: flex;
     align-items: center;
     padding: 0 16px;
@@ -221,7 +227,7 @@
     scrollbar-color: var(--color-border) transparent;
   }
 
-  .nav-section { margin-bottom: 20px; }
+  .nav-section { margin-bottom: 16px; }
   .nav-section__title {
     display: flex;
     align-items: center;
@@ -235,15 +241,21 @@
     margin-bottom: 2px;
   }
   .nav-section__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
     background: none;
     border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    padding: 0 2px;
     border-radius: 4px;
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.15s ease-out, background 0.15s ease-out;
+  }
+  .nav-section__add svg {
+    width: 14px;
+    height: 14px;
   }
   .nav-section__add:hover { color: var(--color-text); background: var(--color-border); }
 
@@ -261,7 +273,7 @@
   }
 
   .nav-item {
-    width: 100%;
+    width: calc(100% - 8px);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -271,16 +283,25 @@
     color: var(--color-text-muted);
     font-size: 14px;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     text-align: left;
-    transition: background 0.1s, color 0.1s;
+    transition: background 0.15s ease-out, color 0.15s ease-out;
     margin: 0 4px;
-    width: calc(100% - 8px);
   }
   .nav-item:hover { background: var(--color-border); color: var(--color-text); }
   .nav-item--active { background: rgba(79,142,247,0.15); color: var(--color-text); font-weight: 500; }
 
-  .nav-item__hash { font-size: 16px; opacity: 0.6; flex-shrink: 0; }
+  .nav-item__hash {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+  }
+  .nav-item__hash svg {
+    width: 16px;
+    height: 16px;
+  }
   .nav-item__dm-dot { display: flex; align-items: center; flex-shrink: 0; }
   .nav-item__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
@@ -300,7 +321,7 @@
   }
 
   .sidebar__footer {
-    padding: 0px 16px 30px;
+    padding: 0px 16px 16px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -362,15 +383,22 @@
   }
 
   .logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     background: none;
     border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 18px;
-    padding: 4px 6px;
     border-radius: 6px;
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.15s ease-out, background 0.15s ease-out;
     flex-shrink: 0;
+  }
+  .logout-btn svg {
+    width: 16px;
+    height: 16px;
   }
   .logout-btn:hover { color: var(--color-text); background: var(--color-border); }
   .avatar-error { margin: -22px 16px 8px; color: #f87171; font-size: 11px; }

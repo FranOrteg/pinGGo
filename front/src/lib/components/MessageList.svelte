@@ -84,7 +84,7 @@
   {#if loading && messages.length === 0}
     <div class="list-status">Loading messages…</div>
   {:else if messages.length === 0}
-    <div class="list-status">No messages yet. Say hello! 👋</div>
+    <div class="list-status">No messages yet. Say hello!</div>
   {:else}
     {#if hasMore}
       <div class="load-more-area">
@@ -142,12 +142,15 @@
     padding: 5px 14px;
     font-size: 12px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: border-color 0.15s ease-out, color 0.15s ease-out;
   }
-  .load-more-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+  .load-more-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
 
   .typing-bar {
-    height: 24px;
+    height: 20px;
     padding: 0 16px;
     font-size: 12px;
     color: var(--color-text-muted);
@@ -162,16 +165,16 @@
     align-items: center;
   }
   .typing-dots span {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: var(--color-text-muted);
-    animation: bounce 1.2s infinite ease-in-out;
+    animation: pulse 1.4s infinite ease-in-out;
   }
   .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
   .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-4px); }
+  @keyframes pulse {
+    0%, 60%, 100% { opacity: 0.4; transform: scale(1); }
+    30% { opacity: 1; transform: scale(1.1); }
   }
 </style>

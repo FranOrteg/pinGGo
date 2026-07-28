@@ -161,25 +161,37 @@
   <!-- Hover action bar -->
   {#if hovered && !editing}
     <div class="message__actions">
-      <div class="action-group">
+      <div class="action-group" role="toolbar" aria-label="Message actions">
         <button
           class="action-btn"
+          aria-label="Add reaction"
           title="Add reaction"
           on:click|stopPropagation={() => (showEmojiPicker = !showEmojiPicker)}
-          >😊</button
         >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M5.5 6.5v.5M10.5 6.5v.5M5.5 10c.5.8 1.5 1.5 2.5 1.5s2-.7 2.5-1.5"/></svg>
+        </button>
         {#if isOwn}
-          <button class="action-btn" title="Edit message" on:click={startEdit}
-            >✏️</button
+          <button
+            class="action-btn"
+            aria-label="Edit message"
+            title="Edit message"
+            on:click={startEdit}
           >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z"/></svg>
+          </button>
           <button
             class="action-btn"
             class:action-btn--danger={deleteConfirm}
-            title="{deleteConfirm
-              ? 'Click again to confirm delete'
-              : 'Delete message'}đ"
-            on:click={handleDeleteClick}>{deleteConfirm ? "⚠️" : "🗑️"}</button
+            aria-label={deleteConfirm ? 'Confirm delete' : 'Delete message'}
+            title={deleteConfirm ? 'Click again to confirm delete' : 'Delete message'}
+            on:click={handleDeleteClick}
           >
+            {#if deleteConfirm}
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/><circle cx="8" cy="8" r="6.5"/></svg>
+            {:else}
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5v8.5a1 1 0 001 1h4a1 1 0 001-1V4.5"/></svg>
+            {/if}
+          </button>
         {/if}
       </div>
       {#if showEmojiPicker}
@@ -191,11 +203,11 @@
   {/if}
 
   {#if showHeader}
-      <div
-        class="message__avatar"
-        style="background: {avatarColor(message.username)}"
-        aria-hidden="true"
-      >
+    <div
+      class="message__avatar"
+      style="background: {avatarColor(message.username)}"
+      aria-hidden="true"
+    >
       {#if avatarUrl}
         <img src={avatarUrl} alt="" />
       {:else}
@@ -206,8 +218,7 @@
       <div class="message__header">
         <span class="message__username">{message.username}</span>
         <span class="message__time">{formatTime(message.created_at)}</span>
-        {#if message.edited_at}<span class="message__edited">(edited)</span
-          >{/if}
+        {#if message.edited_at}<span class="message__edited">(edited)</span>{/if}
       </div>
 
       {#if editing}
@@ -257,14 +268,18 @@
                 class="attachment__file"
                 on:click={handleAttachmentDownload}
               >
-                <span class="attachment__file-icon">📎</span>
+                <span class="attachment__file-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V6L9 1.5z"/><path d="M9 1.5v4.5H13"/></svg>
+                </span>
                 <span class="attachment__file-info">
                   <span class="attachment__file-name">{message.file_name}</span>
                   {#if message.file_size}<span class="attachment__file-size"
                       >{formatFileSize(message.file_size)}</span
                     >{/if}
                 </span>
-                <span class="attachment__download">↓</span>
+                <span class="attachment__download">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                </span>
               </button>
             {/if}
           </div>
@@ -340,7 +355,8 @@
                   class="attachment__download"
                   style="cursor:pointer"
                   on:click={() => downloadFile(message.uuid, message.file_name)}
-                  >↓
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
                 </span>
               {/if}
             {:else}
@@ -349,14 +365,18 @@
                 class="attachment__file"
                 on:click={handleAttachmentDownload}
               >
-                <span class="attachment__file-icon">📎</span>
+                <span class="attachment__file-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V6L9 1.5z"/><path d="M9 1.5v4.5H13"/></svg>
+                </span>
                 <span class="attachment__file-info">
                   <span class="attachment__file-name">{message.file_name}</span>
                   {#if message.file_size}<span class="attachment__file-size"
                       >{formatFileSize(message.file_size)}</span
                     >{/if}
                 </span>
-                <span class="attachment__download">↓</span>
+                <span class="attachment__download">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                </span>
               </button>
             {/if}
           </div>
@@ -387,10 +407,10 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 3px 16px;
+    padding: 4px 16px 2px;
     border-radius: 4px;
     position: relative;
-    transition: background 0.1s;
+    transition: background 0.15s ease-out;
   }
   .message:hover {
     background: rgba(255, 255, 255, 0.03);
@@ -398,17 +418,17 @@
 
   /* ── Avatar ── */
   .message__avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     color: #fff;
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 1px;
     overflow: hidden;
   }
   .message__avatar img {
@@ -430,8 +450,8 @@
   .message__header {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    margin-bottom: 2px;
+    gap: 6px;
+    margin-bottom: 1px;
   }
   .message__username {
     font-size: 14px;
@@ -439,13 +459,12 @@
     color: var(--color-text);
   }
   .message__time {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-text-muted);
   }
   .message__edited {
     font-size: 11px;
     color: var(--color-text-muted);
-    font-style: italic;
   }
 
   .message__content {
@@ -459,7 +478,7 @@
 
   /* ── Compact ── */
   .message--compact {
-    padding-left: 62px;
+    padding-left: 58px;
   }
   .message__time-hover {
     position: absolute;
@@ -467,11 +486,11 @@
     font-size: 10px;
     color: var(--color-text-muted);
     opacity: 0;
-    transition: opacity 0.1s;
+    transition: opacity 0.15s ease-out;
     top: 50%;
     transform: translateY(-50%);
     white-space: nowrap;
-    width: 36px;
+    width: 32px;
     text-align: center;
   }
   .message:hover .message__time-hover {
@@ -481,9 +500,18 @@
   /* ── Hover action bar ── */
   .message__actions {
     position: absolute;
-    top: -14px;
+    top: -12px;
     right: 12px;
     z-index: 10;
+    opacity: 0;
+    transform: translateY(2px);
+    animation: actions-in 0.15s ease-out forwards;
+  }
+  @keyframes actions-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .action-group {
     display: flex;
@@ -491,28 +519,41 @@
     gap: 1px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 2px 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 2px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   }
   .action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 26px;
     background: none;
     border: none;
-    font-size: 15px;
+    color: var(--color-text-muted);
     cursor: pointer;
-    padding: 3px 5px;
-    border-radius: 5px;
-    line-height: 1;
-    transition: background 0.1s;
+    border-radius: 4px;
+    transition: background 0.1s ease-out, color 0.1s ease-out;
   }
   .action-btn:hover {
     background: var(--color-border);
+    color: var(--color-text);
+  }
+  .action-btn:focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+  .action-btn svg {
+    width: 14px;
+    height: 14px;
   }
   .action-btn--danger {
-    background: rgba(237, 66, 69, 0.15);
+    color: var(--color-dnd);
   }
   .action-btn--danger:hover {
-    background: rgba(237, 66, 69, 0.3);
+    background: rgba(237, 66, 69, 0.15);
+    color: var(--color-dnd);
   }
 
   /* ── Emoji picker anchor ── */
@@ -540,6 +581,7 @@
     box-sizing: border-box;
     font-family: inherit;
     outline: none;
+    transition: border-color 0.15s ease-out;
   }
   .edit-footer {
     display: flex;
@@ -563,10 +605,14 @@
     padding: 3px 10px;
     cursor: pointer;
     font-weight: 500;
+    transition: background 0.1s ease-out;
   }
   .btn-save {
     background: var(--color-accent);
     color: #fff;
+  }
+  .btn-save:hover {
+    opacity: 0.9;
   }
   .btn-save:disabled {
     opacity: 0.6;
@@ -575,6 +621,10 @@
   .btn-cancel {
     background: var(--color-border);
     color: var(--color-text-muted);
+  }
+  .btn-cancel:hover {
+    background: var(--color-text-muted);
+    color: var(--color-text);
   }
 
   /* ── Reactions ── */
@@ -588,15 +638,13 @@
     display: flex;
     align-items: center;
     gap: 3px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1px 7px;
     font-size: 14px;
     cursor: pointer;
-    transition:
-      background 0.1s,
-      border-color 0.1s;
+    transition: background 0.15s ease-out, border-color 0.15s ease-out;
   }
   .reaction-chip:hover {
     background: rgba(255, 255, 255, 0.1);
@@ -634,7 +682,7 @@
     text-decoration: none;
     color: var(--color-text);
     max-width: 320px;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s ease-out;
     cursor: pointer;
     font: inherit;
     text-align: left;
@@ -643,8 +691,12 @@
     border-color: var(--color-accent);
   }
   .attachment__file-icon {
-    font-size: 20px;
     flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+  .attachment__file-icon svg {
+    width: 18px;
+    height: 18px;
   }
   .attachment__file-info {
     display: flex;
@@ -665,7 +717,10 @@
   .attachment__download {
     margin-left: auto;
     color: var(--color-accent);
-    font-size: 16px;
     flex-shrink: 0;
+  }
+  .attachment__download svg {
+    width: 14px;
+    height: 14px;
   }
 </style>

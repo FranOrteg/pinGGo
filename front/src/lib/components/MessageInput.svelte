@@ -80,7 +80,9 @@
 
   {#if pendingFile}
     <div class="file-preview">
-      <span class="file-preview__icon">📎</span>
+      <span class="file-preview__icon">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V6L9 1.5z"/><path d="M9 1.5v4.5H13"/></svg>
+      </span>
       <span class="file-preview__name">{pendingFile.name}</span>
       <span class="file-preview__size">({formatFileSize(pendingFile.size)})</span>
       {#if uploading}
@@ -89,7 +91,9 @@
         </div>
         <span class="file-preview__pct">{uploadProgress}%</span>
       {:else}
-        <button class="file-preview__remove" on:click={removeFile} aria-label="Remove file">✕</button>
+        <button class="file-preview__remove" on:click={removeFile} aria-label="Remove file">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
       {/if}
     </div>
   {/if}
@@ -101,7 +105,9 @@
       disabled={uploading}
       aria-label="Attach file"
       title="Attach file"
-    >📎</button>
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 7.5l-6 6a3.5 3.5 0 01-5-5l6-6a2 2 0 013 3l-6 6a.5.5 0 01-.7-.7l5.5-5.5"/></svg>
+    </button>
 
     <input
       bind:this={fileInput}
@@ -128,10 +134,14 @@
       disabled={uploading || (!value.trim() && !pendingFile)}
       aria-label="Send message"
     >
-      {#if uploading}⏳{:else}↑{/if}
+      {#if uploading}
+        <svg class="send-spinner" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M3.4 3.4l2.1 2.1M10.5 10.5l2.1 2.1M3.4 12.6l2.1-2.1M10.5 5.5l2.1-2.1"/></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+      {/if}
     </button>
   </div>
-  <p class="input-hint">Enter to send · Shift+Enter for new line</p>
+  <p class="input-hint">Enter to send · Shift + Enter for new line</p>
 </div>
 
 <style>
@@ -152,13 +162,62 @@
     font-size: 13px;
     color: var(--color-text);
   }
-  .file-preview__name { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .file-preview__size { color: var(--color-text-muted); }
-  .file-preview__remove { background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 12px; padding: 2px 4px; margin-left: auto; }
-  .file-preview__remove:hover { color: var(--color-dnd); }
-  .file-preview__bar { flex: 1; height: 4px; background: var(--color-border); border-radius: 2px; overflow: hidden; }
-  .file-preview__fill { height: 100%; background: var(--color-accent); border-radius: 2px; transition: width 0.2s; }
-  .file-preview__pct { font-size: 11px; color: var(--color-text-muted); min-width: 32px; text-align: right; }
+  .file-preview__icon {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+  .file-preview__icon svg {
+    width: 14px;
+    height: 14px;
+  }
+  .file-preview__name {
+    font-weight: 500;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-preview__size {
+    color: var(--color-text-muted);
+  }
+  .file-preview__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 2px 4px;
+    margin-left: auto;
+    transition: color 0.15s ease-out;
+  }
+  .file-preview__remove svg {
+    width: 12px;
+    height: 12px;
+  }
+  .file-preview__remove:hover {
+    color: var(--color-dnd);
+  }
+  .file-preview__bar {
+    flex: 1;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .file-preview__fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 2px;
+    transition: width 0.15s ease-out;
+  }
+  .file-preview__pct {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    min-width: 32px;
+    text-align: right;
+  }
 
   .input-box {
     display: flex;
@@ -168,9 +227,12 @@
     border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 8px 8px 8px 8px;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
   }
-  .input-box:focus-within { border-color: var(--color-accent); }
+  .input-box:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px rgba(79, 142, 247, 0.15);
+  }
 
   .attach-btn {
     width: 30px;
@@ -179,16 +241,25 @@
     border: none;
     background: none;
     cursor: pointer;
-    font-size: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    opacity: 0.6;
-    transition: opacity 0.15s;
+    color: var(--color-text-muted);
+    transition: color 0.15s ease-out, background 0.15s ease-out;
   }
-  .attach-btn:hover:not(:disabled) { opacity: 1; }
-  .attach-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .attach-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  .attach-btn:hover:not(:disabled) {
+    color: var(--color-text);
+    background: var(--color-border);
+  }
+  .attach-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
 
   .file-input-hidden { display: none; }
 
@@ -216,24 +287,44 @@
     border: none;
     background: var(--color-accent);
     color: #fff;
-    font-size: 18px;
-    font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: opacity 0.15s;
+    transition: opacity 0.15s ease-out;
   }
-  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .send-btn:hover:not(:disabled) { opacity: 0.85; }
+  .send-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .send-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .send-btn:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  .send-spinner {
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 
   .input-hint {
     font-size: 11px;
     color: var(--color-text-muted);
     margin-top: 5px;
     padding-left: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
   }
+  .input-box:focus-within ~ .input-hint {
+    opacity: 1;
+  }
+
   .input-error {
     font-size: 12px;
     color: var(--color-dnd);
