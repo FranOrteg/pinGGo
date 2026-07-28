@@ -255,12 +255,23 @@
           <div class="attachment">
             {#if isImage(message.file_type)}
               {#if imageUrl}
-                <img
-                  src={imageUrl}
-                  alt={message.file_name}
-                  class="attachment__image"
-                  loading="lazy"
-                />
+                <div class="attachment__image-wrapper">
+                  <img
+                    src={imageUrl}
+                    alt={message.file_name}
+                    class="attachment__image"
+                    loading="lazy"
+                  />
+                  <button
+                    type="button"
+                    class="attachment__download"
+                    on:click={handleAttachmentDownload}
+                    aria-label="Download image"
+                    title="Download"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                  </button>
+                </div>
               {/if}
             {:else}
               <button
@@ -343,21 +354,23 @@
           <div class="attachment">
             {#if isImage(message.file_type)}
               {#if imageUrl}
-                <img
-                  src={imageUrl}
-                  alt={message.file_name}
-                  class="attachment__image"
-                  loading="lazy"
-                />
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <span
-                  class="attachment__download"
-                  style="cursor:pointer"
-                  on:click={() => downloadFile(message.uuid, message.file_name)}
-                >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
-                </span>
+                <div class="attachment__image-wrapper">
+                  <img
+                    src={imageUrl}
+                    alt={message.file_name}
+                    class="attachment__image"
+                    loading="lazy"
+                  />
+                  <button
+                    type="button"
+                    class="attachment__download"
+                    on:click={handleAttachmentDownload}
+                    aria-label="Download image"
+                    title="Download"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                  </button>
+                </div>
               {/if}
             {:else}
               <button
@@ -662,13 +675,36 @@
   .attachment {
     margin-top: 6px;
   }
-  .attachment__image {
+  .attachment__image-wrapper {
+    position: relative;
+    display: inline-block;
     max-width: 360px;
+  }
+  .attachment__image {
+    max-width: 100%;
     max-height: 280px;
     border-radius: 8px;
     display: block;
     object-fit: contain;
     border: 1px solid var(--color-border);
+  }
+  .attachment__image-wrapper .attachment__download {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+    transition: opacity 0.15s ease-out, background 0.15s ease-out, color 0.15s ease-out;
+  }
+  .attachment__image-wrapper:hover .attachment__download {
+    opacity: 1;
+  }
+  .attachment__image-wrapper .attachment__download:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
   }
   .attachment__file {
     display: inline-flex;
@@ -714,9 +750,20 @@
     color: var(--color-text-muted);
   }
   .attachment__download {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     margin-left: auto;
-    color: var(--color-accent);
+    color: var(--color-text-muted);
     flex-shrink: 0;
+    border-radius: 6px;
+    transition: background 0.15s ease-out, color 0.15s ease-out;
+  }
+  .attachment__download:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text);
   }
   .attachment__download svg {
     width: 14px;
