@@ -693,9 +693,11 @@
     top: 8px;
     right: 8px;
     opacity: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
     color: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(4px);
     cursor: pointer;
     transition: opacity 0.15s ease-out, background 0.15s ease-out, color 0.15s ease-out;
   }
@@ -721,9 +723,6 @@
     cursor: pointer;
     font: inherit;
     text-align: left;
-  }
-  .attachment__file:hover {
-    border-color: var(--color-accent);
   }
   .attachment__file-icon {
     flex-shrink: 0;

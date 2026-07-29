@@ -82,7 +82,7 @@
   }
 
   .channel-header {
-    height: 44px;
+    height: 48px;
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border);
     display: flex;

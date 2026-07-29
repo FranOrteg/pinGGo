@@ -205,7 +205,7 @@
   }
 
   .sidebar__header {
-    height: 44px;
+    height: 48px;
     display: flex;
     align-items: center;
     padding: 0 16px;
