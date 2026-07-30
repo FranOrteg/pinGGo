@@ -20,6 +20,16 @@
     getTextPreview,
   } from "$lib/utils/filePreview.js";
 
+  import pdfIcon from "$lib/assets/pdf.svg";
+  import csvIcon from "$lib/assets/csv.svg";
+  import wordIcon from "$lib/assets/word.svg";
+  import excelIcon from "$lib/assets/excel.svg";
+  import txtIcon from "$lib/assets/txt.svg";
+  import xmlIcon from "$lib/assets/xml.svg";
+  import pptIcon from "$lib/assets/ppt.svg";
+  import exeIcon from "$lib/assets/exe.svg";
+  import zipIcon from "$lib/assets/zip.png";
+
   export let message;
   export let showHeader = true;
 
@@ -45,6 +55,18 @@
   $: reactions = message.reactions ?? [];
   $: hasImage = message.file_key && isImage(message.file_type);
   $: hasPreviewableFile = message.file_key && !hasImage && isPreviewable(message.file_type);
+
+  function getFileIcon(fileType) {
+    if (!fileType) return txtIcon;
+    if (fileType.includes('pdf')) return pdfIcon;
+    if (fileType.includes('csv') || fileType.includes('sheet') || fileType.includes('excel')) return excelIcon;
+    if (fileType.includes('word') || fileType.includes('doc')) return wordIcon;
+    if (fileType.includes('powerpoint') || fileType.includes('ppt')) return pptIcon;
+    if (fileType.includes('zip') || fileType.includes('archive')) return zipIcon;
+    if (fileType.includes('xml')) return xmlIcon;
+    if (fileType.includes('json') || fileType.includes('javascript') || fileType.includes('typescript') || fileType.includes('html') || fileType.includes('css') || fileType.includes('text')) return txtIcon;
+    return txtIcon;
+  }
 
   function loadImage(uuid) {
     if (!uuid || uuid.startsWith('temp-') || loadedUuid === uuid) return;
@@ -360,19 +382,7 @@
               >
                 <div class="doc-card__head">
                   <div class="doc-card__icon">
-                    {#if message.file_type?.includes('pdf')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--pdf" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
-                    {:else if message.file_type?.includes('csv') || message.file_type?.includes('sheet') || message.file_type?.includes('excel')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--sheet" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M8 16h32M8 28h32M20 4v40M32 4v40"/></svg>
-                    {:else if message.file_type?.includes('word') || message.file_type?.includes('doc')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--doc" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
-                    {:else if message.file_type?.includes('zip') || message.file_type?.includes('archive')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--zip" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M24 12v4M24 20v4M24 28v4M20 12h8M20 20h8M20 28h8"/></svg>
-                    {:else if message.file_type?.includes('json') || message.file_type?.includes('javascript') || message.file_type?.includes('typescript') || message.file_type?.includes('html') || message.file_type?.includes('css') || message.file_type?.includes('xml')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--code" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M17 20l-5 4 5 4M31 20l5 4-5 4M23 14l2 20"/></svg>
-                    {:else}
-                      <svg class="doc-card__type-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h16"/></svg>
-                    {/if}
+                    <img src={getFileIcon(message.file_type)} alt="" class="doc-card__type-icon" />
                   </div>
                   <div class="doc-card__info">
                     <span class="doc-card__name">{message.file_name}</span>
@@ -517,19 +527,7 @@
               >
                 <div class="doc-card__head">
                   <div class="doc-card__icon">
-                    {#if message.file_type?.includes('pdf')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--pdf" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
-                    {:else if message.file_type?.includes('csv') || message.file_type?.includes('sheet') || message.file_type?.includes('excel')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--sheet" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M8 16h32M8 28h32M20 4v40M32 4v40"/></svg>
-                    {:else if message.file_type?.includes('word') || message.file_type?.includes('doc')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--doc" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
-                    {:else if message.file_type?.includes('zip') || message.file_type?.includes('archive')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--zip" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M24 12v4M24 20v4M24 28v4M20 12h8M20 20h8M20 28h8"/></svg>
-                    {:else if message.file_type?.includes('json') || message.file_type?.includes('javascript') || message.file_type?.includes('typescript') || message.file_type?.includes('html') || message.file_type?.includes('css') || message.file_type?.includes('xml')}
-                      <svg class="doc-card__type-icon doc-card__type-icon--code" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M17 20l-5 4 5 4M31 20l5 4-5 4M23 14l2 20"/></svg>
-                    {:else}
-                      <svg class="doc-card__type-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h16"/></svg>
-                    {/if}
+                    <img src={getFileIcon(message.file_type)} alt="" class="doc-card__type-icon" />
                   </div>
                   <div class="doc-card__info">
                     <span class="doc-card__name">{message.file_name}</span>
@@ -1020,13 +1018,9 @@
   .doc-card__type-icon {
     width: 30px;
     height: 30px;
-    color: var(--color-text-muted);
+    flex-shrink: 0;
+    object-fit: contain;
   }
-  .doc-card__type-icon--pdf  { color: #e74c3c; }
-  .doc-card__type-icon--sheet { color: #27ae60; }
-  .doc-card__type-icon--doc  { color: #4a9eff; }
-  .doc-card__type-icon--zip  { color: #e67e22; }
-  .doc-card__type-icon--code { color: #e67e22; }
   .doc-card__info {
     flex: 1;
     min-width: 0;
