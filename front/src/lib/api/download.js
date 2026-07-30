@@ -1,6 +1,7 @@
 import { api } from './index.js';
 
 const fileUrlCache = new Map();
+const viewUrlCache = new Map();
 
 /**
  * Requests a presigned S3 GET URL and downloads the file from S3.
@@ -30,5 +31,14 @@ export async function getFileUrl(messageId) {
   }
   const response = await api.get(`/download/presign?uuid=${encodeURIComponent(messageId)}`);
   fileUrlCache.set(messageId, response.downloadUrl);
+  return response.downloadUrl;
+}
+
+export async function getViewUrl(messageId) {
+  if (viewUrlCache.has(messageId)) {
+    return viewUrlCache.get(messageId);
+  }
+  const response = await api.get(`/download/presign?uuid=${encodeURIComponent(messageId)}&view=true`);
+  viewUrlCache.set(messageId, response.downloadUrl);
   return response.downloadUrl;
 }

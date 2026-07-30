@@ -42,7 +42,7 @@ async function assertChannelMembership(channelId, userUuid) {
     return !!member;
 }
 
-export async function createPresignedDownload(uuid, userUuid) {
+export async function createPresignedDownload(uuid, userUuid, { view = false } = {}) {
     const file = await getFileFromDatabase(uuid);
 
     if (!file) {
@@ -61,7 +61,7 @@ export async function createPresignedDownload(uuid, userUuid) {
     const command = new GetObjectCommand({
         Bucket: config.s3.bucket,
         Key: key,
-        ResponseContentDisposition: `attachment; filename="${file.file_name}"`,
+        ...(view ? {} : { ResponseContentDisposition: `attachment; filename="${file.file_name}"` }),
     });
 
     const downloadUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 300 });

@@ -7,4 +7,7 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  optimizeDeps: {
+    include: ['pdfjs-dist/build/pdf.mjs'],
+  },
 });

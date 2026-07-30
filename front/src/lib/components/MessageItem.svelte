@@ -10,6 +10,15 @@
   import { downloadFile } from "$lib/api/download.js";
   import { getFileUrl } from "$lib/api/download.js";
   import { getAvatarUrl } from "$lib/api/avatar.js";
+  import {
+    isPreviewable,
+    isPdf,
+    isCsvOrSheet,
+    isTextLike,
+    getPdfPreviewDataUrl,
+    getCsvPreview,
+    getTextPreview,
+  } from "$lib/utils/filePreview.js";
 
   export let message;
   export let showHeader = true;
@@ -26,9 +35,16 @@
   let avatarUrl = null;
   let loadedAvatarKey = null;
 
+  let previewData = null;
+  let previewLoading = false;
+  let previewLoaded = false;
+  let previewError = false;
+  let loadedPreviewUuid = null;
+
   $: isOwn = message.user_uuid === $authUser?.uuid;
   $: reactions = message.reactions ?? [];
   $: hasImage = message.file_key && isImage(message.file_type);
+  $: hasPreviewableFile = message.file_key && !hasImage && isPreviewable(message.file_type);
 
   function loadImage(uuid) {
     if (!uuid || uuid.startsWith('temp-') || loadedUuid === uuid) return;
@@ -40,6 +56,47 @@
   }
 
   $: if (hasImage) loadImage(message.uuid);
+
+  async function loadPreview() {
+    if (!hasPreviewableFile) return;
+    if (!message.uuid || message.uuid.startsWith('temp-')) return;
+    if (loadedPreviewUuid === message.uuid) return; // Ya cargada para este UUID
+
+    // Resetear estados al cambiar de UUID
+    if (loadedPreviewUuid !== message.uuid) {
+      previewData = null;
+      previewLoaded = false;
+      previewError = false;
+      loadedPreviewUuid = message.uuid;
+    }
+
+    if (previewLoading) return;
+
+    previewLoading = true;
+
+    try {
+      if (isPdf(message.file_type)) {
+        const dataUrl = await getPdfPreviewDataUrl(message.uuid);
+        previewData = { type: 'pdf', dataUrl };
+      } else if (isCsvOrSheet(message.file_type)) {
+        const csv = await getCsvPreview(message.uuid);
+        previewData = { type: 'csv', ...csv };
+      } else if (isTextLike(message.file_type)) {
+        const text = await getTextPreview(message.uuid);
+        previewData = { type: 'text', content: text };
+      }
+      previewLoaded = true;
+    } catch (err) {
+      console.error('[MessageItem] Preview load failed:', err);
+      previewError = true;
+    } finally {
+      previewLoading = false;
+    }
+  }
+
+  $: if (hasPreviewableFile && message.uuid && message.uuid !== loadedPreviewUuid) {
+    loadPreview();
+  }
 
   function loadAvatar(userUuid, avatarKey) {
     const cacheKey = `${userUuid}:${avatarKey ?? ''}`;
@@ -79,6 +136,24 @@
   function formatTime(iso) {
     const d = new Date(iso);
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function getFileTypeLabel(fileType) {
+    if (!fileType) return 'File';
+    if (fileType.includes('pdf')) return 'PDF';
+    if (fileType.includes('csv')) return 'CSV';
+    if (fileType.includes('sheet') || fileType.includes('excel')) return 'Spreadsheet';
+    if (fileType.includes('word') || fileType.includes('doc')) return 'Document';
+    if (fileType.includes('zip') || fileType.includes('archive')) return 'Archive';
+    if (fileType.includes('json')) return 'JSON';
+    if (fileType.includes('javascript')) return 'JavaScript';
+    if (fileType.includes('typescript')) return 'TypeScript';
+    if (fileType.includes('html')) return 'HTML';
+    if (fileType.includes('css')) return 'CSS';
+    if (fileType.includes('xml')) return 'XML';
+    if (fileType.includes('markdown')) return 'Markdown';
+    if (fileType.includes('text')) return 'Text';
+    return 'File';
   }
 
   function startEdit() {
@@ -274,24 +349,82 @@
                 </div>
               {/if}
             {:else}
-              <button
-                type="button"
-                class="attachment__file"
+              <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+              <div
+                class="doc-card"
                 on:click={handleAttachmentDownload}
+                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleAttachmentDownload()}
+                role="button"
+                tabindex="0"
+                aria-label="Download {message.file_name}"
               >
-                <span class="attachment__file-icon">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V6L9 1.5z"/><path d="M9 1.5v4.5H13"/></svg>
-                </span>
-                <span class="attachment__file-info">
-                  <span class="attachment__file-name">{message.file_name}</span>
-                  {#if message.file_size}<span class="attachment__file-size"
-                      >{formatFileSize(message.file_size)}</span
-                    >{/if}
-                </span>
-                <span class="attachment__download">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
-                </span>
-              </button>
+                <div class="doc-card__head">
+                  <div class="doc-card__icon">
+                    {#if message.file_type?.includes('pdf')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--pdf" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
+                    {:else if message.file_type?.includes('csv') || message.file_type?.includes('sheet') || message.file_type?.includes('excel')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--sheet" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M8 16h32M8 28h32M20 4v40M32 4v40"/></svg>
+                    {:else if message.file_type?.includes('word') || message.file_type?.includes('doc')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--doc" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
+                    {:else if message.file_type?.includes('zip') || message.file_type?.includes('archive')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--zip" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M24 12v4M24 20v4M24 28v4M20 12h8M20 20h8M20 28h8"/></svg>
+                    {:else if message.file_type?.includes('json') || message.file_type?.includes('javascript') || message.file_type?.includes('typescript') || message.file_type?.includes('html') || message.file_type?.includes('css') || message.file_type?.includes('xml')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--code" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M17 20l-5 4 5 4M31 20l5 4-5 4M23 14l2 20"/></svg>
+                    {:else}
+                      <svg class="doc-card__type-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h16"/></svg>
+                    {/if}
+                  </div>
+                  <div class="doc-card__info">
+                    <span class="doc-card__name">{message.file_name}</span>
+                    <span class="doc-card__type-label">
+                      {getFileTypeLabel(message.file_type)}{#if message.file_size} · {formatFileSize(message.file_size)}{/if}
+                    </span>
+                  </div>
+                </div>
+                {#if previewData}
+                  <div class="doc-card__preview">
+                    {#if previewData.type === 'pdf'}
+                      <img
+                        src={previewData.dataUrl}
+                        alt="PDF preview of {message.file_name}"
+                        class="attachment__preview-img"
+                      />
+                    {:else if previewData.type === 'csv'}
+                      <div class="attachment__preview-table-wrap">
+                        <table class="attachment__preview-table">
+                          <thead>
+                            <tr>
+                              {#each previewData.headers as header}
+                                <th>{header}</th>
+                              {/each}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {#each previewData.rows as row}
+                              <tr>
+                                {#each row as cell}
+                                  <td>{cell}</td>
+                                {/each}
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    {:else if previewData.type === 'text'}
+                      <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
+                    {/if}
+                    <button
+                      type="button"
+                      class="attachment__download"
+                      on:click|stopPropagation={handleAttachmentDownload}
+                      aria-label="Download {message.file_name}"
+                      title="Download"
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                    </button>
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}
@@ -373,24 +506,82 @@
                 </div>
               {/if}
             {:else}
-              <button
-                type="button"
-                class="attachment__file"
+              <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+              <div
+                class="doc-card"
                 on:click={handleAttachmentDownload}
+                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleAttachmentDownload()}
+                role="button"
+                tabindex="0"
+                aria-label="Download {message.file_name}"
               >
-                <span class="attachment__file-icon">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4.5a1 1 0 00-1 1v11a1 1 0 001 1h7a1 1 0 001-1V6L9 1.5z"/><path d="M9 1.5v4.5H13"/></svg>
-                </span>
-                <span class="attachment__file-info">
-                  <span class="attachment__file-name">{message.file_name}</span>
-                  {#if message.file_size}<span class="attachment__file-size"
-                      >{formatFileSize(message.file_size)}</span
-                    >{/if}
-                </span>
-                <span class="attachment__download">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
-                </span>
-              </button>
+                <div class="doc-card__head">
+                  <div class="doc-card__icon">
+                    {#if message.file_type?.includes('pdf')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--pdf" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
+                    {:else if message.file_type?.includes('csv') || message.file_type?.includes('sheet') || message.file_type?.includes('excel')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--sheet" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M8 16h32M8 28h32M20 4v40M32 4v40"/></svg>
+                    {:else if message.file_type?.includes('word') || message.file_type?.includes('doc')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--doc" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h8"/></svg>
+                    {:else if message.file_type?.includes('zip') || message.file_type?.includes('archive')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--zip" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M24 12v4M24 20v4M24 28v4M20 12h8M20 20h8M20 28h8"/></svg>
+                    {:else if message.file_type?.includes('json') || message.file_type?.includes('javascript') || message.file_type?.includes('typescript') || message.file_type?.includes('html') || message.file_type?.includes('css') || message.file_type?.includes('xml')}
+                      <svg class="doc-card__type-icon doc-card__type-icon--code" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M17 20l-5 4 5 4M31 20l5 4-5 4M23 14l2 20"/></svg>
+                    {:else}
+                      <svg class="doc-card__type-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="32" height="40" rx="2"/><path d="M16 16h16M16 24h16M16 32h16"/></svg>
+                    {/if}
+                  </div>
+                  <div class="doc-card__info">
+                    <span class="doc-card__name">{message.file_name}</span>
+                    <span class="doc-card__type-label">
+                      {getFileTypeLabel(message.file_type)}{#if message.file_size} · {formatFileSize(message.file_size)}{/if}
+                    </span>
+                  </div>
+                </div>
+                {#if previewData}
+                  <div class="doc-card__preview">
+                    {#if previewData.type === 'pdf'}
+                      <img
+                        src={previewData.dataUrl}
+                        alt="PDF preview of {message.file_name}"
+                        class="attachment__preview-img"
+                      />
+                    {:else if previewData.type === 'csv'}
+                      <div class="attachment__preview-table-wrap">
+                        <table class="attachment__preview-table">
+                          <thead>
+                            <tr>
+                              {#each previewData.headers as header}
+                                <th>{header}</th>
+                              {/each}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {#each previewData.rows as row}
+                              <tr>
+                                {#each row as cell}
+                                  <td>{cell}</td>
+                                {/each}
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    {:else if previewData.type === 'text'}
+                      <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
+                    {/if}
+                    <button
+                      type="button"
+                      class="attachment__download"
+                      on:click|stopPropagation={handleAttachmentDownload}
+                      aria-label="Download {message.file_name}"
+                      title="Download"
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                    </button>
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}
@@ -708,53 +899,12 @@
     background: var(--color-surface);
     color: var(--color-text);
   }
-  .attachment__file {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    text-decoration: none;
-    color: var(--color-text);
-    max-width: 320px;
-    transition: border-color 0.15s ease-out;
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-  }
-  .attachment__file-icon {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-  }
-  .attachment__file-icon svg {
-    width: 18px;
-    height: 18px;
-  }
-  .attachment__file-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .attachment__file-name {
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .attachment__file-size {
-    font-size: 11px;
-    color: var(--color-text-muted);
-  }
   .attachment__download {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 28px;
     height: 28px;
-    margin-left: auto;
     color: var(--color-text-muted);
     flex-shrink: 0;
     border-radius: 6px;
@@ -765,6 +915,187 @@
     color: var(--color-text);
   }
   .attachment__download svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* ── Preview shared styles ── */
+  .attachment__preview-img {
+    width: 100%;
+    height: auto;
+    max-height: 220px;
+    object-fit: contain;
+    display: block;
+  }
+  .attachment__preview-table-wrap {
+    width: 100%;
+    overflow: auto;
+    max-height: 200px;
+    padding: 8px;
+  }
+  .attachment__preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .attachment__preview-table th,
+  .attachment__preview-table td {
+    padding: 3px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .attachment__preview-table th {
+    font-weight: 600;
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.04);
+    position: sticky;
+    top: 0;
+  }
+  .attachment__preview-table td {
+    color: var(--color-text-muted);
+  }
+  .attachment__preview-code {
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    background: transparent;
+    overflow: auto;
+    max-height: 200px;
+    white-space: pre;
+    tab-size: 2;
+  }
+  .attachment__preview-code code {
+    font-family: inherit;
+  }
+
+  /* ── Doc card (Slack-style) ── */
+  .doc-card {
+    display: inline-flex;
+    flex-direction: column;
+    max-width: 360px;
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    color: var(--color-text);
+    text-align: left;
+    font: inherit;
+    transition: border-color 0.15s ease-out;
+    outline: none;
+  }
+  .doc-card:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+  .doc-card:focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+  .doc-card__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .doc-card__icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .doc-card__type-icon {
+    width: 30px;
+    height: 30px;
+    color: var(--color-text-muted);
+  }
+  .doc-card__type-icon--pdf  { color: #e74c3c; }
+  .doc-card__type-icon--sheet { color: #27ae60; }
+  .doc-card__type-icon--doc  { color: #4a9eff; }
+  .doc-card__type-icon--zip  { color: #e67e22; }
+  .doc-card__type-icon--code { color: #e67e22; }
+  .doc-card__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .doc-card__name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text);
+  }
+  .doc-card__type-label {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+  .doc-card__preview {
+    position: relative;
+    border-top: 1px solid var(--color-border);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    max-height: 220px;
+  }
+  .doc-card__preview .attachment__preview-img {
+    width: 100%;
+    height: auto;
+    max-height: 220px;
+    object-fit: contain;
+    display: block;
+  }
+  .doc-card__preview .attachment__preview-table-wrap {
+    width: 100%;
+    max-height: 200px;
+    align-self: flex-start;
+  }
+  .doc-card__preview .attachment__preview-code {
+    width: 100%;
+    max-height: 200px;
+    align-self: flex-start;
+  }
+  .doc-card__preview .attachment__download {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    background: rgba(0, 0, 0, 0.55);
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease-out, background 0.15s ease-out;
+    flex-shrink: 0;
+  }
+  .doc-card__preview:hover .attachment__download {
+    opacity: 1;
+  }
+  .doc-card__preview .attachment__download:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+  .doc-card__preview .attachment__download svg {
     width: 14px;
     height: 14px;
   }

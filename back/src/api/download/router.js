@@ -7,9 +7,9 @@ const router = Router();
 router.get('/presign', authenticate, async (req, res) => {
     try {
 
-        const { uuid } = req.query;
+        const { uuid, view } = req.query;
 
-        const file = await createPresignedDownload(uuid, req.user.sub);
+        const file = await createPresignedDownload(uuid, req.user.sub, { view: view === 'true' });
         
         res.json(file);
     } catch (error) {
