@@ -380,6 +380,15 @@
                       {getFileTypeLabel(message.file_type)}{#if message.file_size} · {formatFileSize(message.file_size)}{/if}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    class="doc-card__download"
+                    on:click|stopPropagation={handleAttachmentDownload}
+                    aria-label="Download {message.file_name}"
+                    title="Download"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                  </button>
                 </div>
                 {#if previewData}
                   <div class="doc-card__preview">
@@ -413,15 +422,6 @@
                     {:else if previewData.type === 'text'}
                       <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
                     {/if}
-                    <button
-                      type="button"
-                      class="attachment__download"
-                      on:click|stopPropagation={handleAttachmentDownload}
-                      aria-label="Download {message.file_name}"
-                      title="Download"
-                    >
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
-                    </button>
                   </div>
                 {/if}
               </div>
@@ -537,6 +537,15 @@
                       {getFileTypeLabel(message.file_type)}{#if message.file_size} · {formatFileSize(message.file_size)}{/if}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    class="doc-card__download"
+                    on:click|stopPropagation={handleAttachmentDownload}
+                    aria-label="Download {message.file_name}"
+                    title="Download"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
+                  </button>
                 </div>
                 {#if previewData}
                   <div class="doc-card__preview">
@@ -570,15 +579,6 @@
                     {:else if previewData.type === 'text'}
                       <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
                     {/if}
-                    <button
-                      type="button"
-                      class="attachment__download"
-                      on:click|stopPropagation={handleAttachmentDownload}
-                      aria-label="Download {message.file_name}"
-                      title="Download"
-                    >
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>
-                    </button>
                   </div>
                 {/if}
               </div>
@@ -865,6 +865,7 @@
   /* ── Attachments ── */
   .attachment {
     margin-top: 6px;
+    margin-bottom: 6px;
   }
   .attachment__image-wrapper {
     position: relative;
@@ -1004,8 +1005,9 @@
   .doc-card__head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 12px;
+    padding: 12px 14px;
+    justify-content: space-between;
   }
   .doc-card__icon {
     width: 36px;
@@ -1044,6 +1046,28 @@
     font-size: 11px;
     color: var(--color-text-muted);
   }
+  .doc-card__download {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease-out, color 0.15s ease-out;
+  }
+  .doc-card__download:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text);
+  }
+  .doc-card__download svg {
+    width: 16px;
+    height: 16px;
+  }
   .doc-card__preview {
     position: relative;
     border-top: 1px solid var(--color-border);
@@ -1070,33 +1094,5 @@
     width: 100%;
     max-height: 200px;
     align-self: flex-start;
-  }
-  .doc-card__preview .attachment__download {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    opacity: 0;
-    background: rgba(0, 0, 0, 0.55);
-    border: none;
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.92);
-    cursor: pointer;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.15s ease-out, background 0.15s ease-out;
-    flex-shrink: 0;
-  }
-  .doc-card__preview:hover .attachment__download {
-    opacity: 1;
-  }
-  .doc-card__preview .attachment__download:hover {
-    background: rgba(0, 0, 0, 0.75);
-  }
-  .doc-card__preview .attachment__download svg {
-    width: 14px;
-    height: 14px;
   }
 </style>
