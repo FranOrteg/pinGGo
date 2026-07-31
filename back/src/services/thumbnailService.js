@@ -238,14 +238,18 @@ export async function getThumbnailUrl(messageUuid, { fileKey, fileType }) {
 
   // Reuse an already-generated thumbnail when present.
   if (await fileExistsInS3(s3, bucket, thumbKey)) {
-    return signThumbnailUrl(s3, bucket, thumbKey);
+    const url = await signThumbnailUrl(s3, bucket, thumbKey);
+    return { url, generated: false };
   }
 
   // Deduplicate: if the same thumbnail is already being generated, await it.
   const pending = inFlight.get(thumbKey);
   if (pending) return pending;
 
-  const task = generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType);
+  const task = (async () => {
+    const url = await generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType);
+    return { url, generated: true };
+  })();
   inFlight.set(thumbKey, task);
   task.finally(() => inFlight.delete(thumbKey)).catch(() => {});
 

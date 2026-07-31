@@ -196,6 +196,11 @@ export async function getOfficeThumbnail(messageId) {
   if (previewCache.has(cacheKey)) return previewCache.get(cacheKey);
 
   const url = await getThumbnailUrl(messageId);
-  previewCache.set(cacheKey, url);
+  if (url) previewCache.set(cacheKey, url);
   return url;
+}
+
+/** Drops the cached office thumbnail so a retry can be attempted. */
+export function invalidateOfficeThumbnailCache(messageId) {
+  previewCache.delete(`office:${messageId}`);
 }

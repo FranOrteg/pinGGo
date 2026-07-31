@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
+import { getIO } from '../../socket/io.js';
 import { getFileFromDatabase, assertChannelMembership } from '../../services/downloadService.js';
 import { isOfficeType, getThumbnailUrl } from '../../services/thumbnailService.js';
 
@@ -24,14 +25,27 @@ router.get('/presign', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Thumbnail not available for this file type' });
     }
 
-    const url = await getThumbnailUrl(uuid, {
+    const result = await getThumbnailUrl(uuid, {
       fileKey: file.file_key,
       fileType: file.file_type,
     });
 
-    if (!url) return res.status(404).json({ error: 'Could not generate thumbnail' });
+    if (!result || !result.url) return res.status(404).json({ error: 'Could not generate thumbnail' });
 
-    res.json({ url });
+    // Notify the whole channel so already-rendered messages pick up the
+    // thumbnail the moment it becomes available (no reload / polling needed).
+    // Rooms are keyed by the channel uuid (see channel:join in messageHandlers).
+    if (result.generated) {
+      const io = getIO();
+      if (io) {
+        io.to(`channel:${file.channel_uuid}`).emit('thumbnail:ready', {
+          messageUuid: uuid,
+          url: result.url,
+        });
+      }
+    }
+
+    res.json({ url: result.url });
   } catch (error) {
     console.error('[thumbnails] error:', error);
     res.status(error.status || 500).json({ error: error.message });

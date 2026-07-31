@@ -4,6 +4,8 @@ import { getSocket } from '$lib/socket/client.js';
 import { activeChannelId } from '$lib/stores/channels.js';
 import { incrementUnread } from '$lib/stores/unread.js';
 import { authUser } from '$lib/stores/auth.js';
+import { invalidateThumbnailCache } from '$lib/api/download.js';
+import { invalidateOfficeThumbnailCache } from '$lib/utils/filePreview.js';
 
 /** { [channelId]: Message[] } */
 export const messagesByChannel = writable({});
@@ -156,12 +158,36 @@ export function bindSocketListeners(socket) {
     }));
   }
 
+  function onThumbnailReady({ messageUuid, url }) {
+    // Drop any cached failure so retries can succeed, then update the single
+    // affected message across whichever channels currently hold it.
+    invalidateThumbnailCache(messageUuid);
+    invalidateOfficeThumbnailCache(messageUuid);
+
+    messagesByChannel.update((state) => {
+      let changed = false;
+      const next = {};
+      for (const [channelId, messages] of Object.entries(state)) {
+        if (messages.some((m) => m.uuid === messageUuid)) {
+          changed = true;
+          next[channelId] = messages.map((m) =>
+            m.uuid === messageUuid ? { ...m, _thumbnailReady: true, _thumbnailUrl: url } : m
+          );
+        } else {
+          next[channelId] = messages;
+        }
+      }
+      return changed ? next : state;
+    });
+  }
+
   socket.on('message:new', onNewMessage);
   socket.on('message:updated', onMessageUpdated);
   socket.on('message:deleted', onMessageDeleted);
   socket.on('message:reaction', onMessageReaction);
   socket.on('typing:start', onTypingStart);
   socket.on('typing:stop', onTypingStop);
+  socket.on('thumbnail:ready', onThumbnailReady);
 
   return () => {
     socket.off('message:new', onNewMessage);
@@ -170,6 +196,7 @@ export function bindSocketListeners(socket) {
     socket.off('message:reaction', onMessageReaction);
     socket.off('typing:start', onTypingStart);
     socket.off('typing:stop', onTypingStop);
+    socket.off('thumbnail:ready', onThumbnailReady);
   };
 }
 

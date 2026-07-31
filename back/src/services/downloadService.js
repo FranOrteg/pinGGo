@@ -21,7 +21,13 @@ export async function getFileFromDatabase(uuid) {
         throw new Error('UUID is required');
     }
 
-    const file = await queryOne('SELECT file_key, file_name, file_type, channel_id FROM messages WHERE uuid = ?', [uuid]);
+    const file = await queryOne(
+      `SELECT m.file_key, m.file_name, m.file_type, m.channel_id, c.uuid AS channel_uuid
+       FROM messages m
+       JOIN channels c ON c.id = m.channel_id
+       WHERE m.uuid = ?`,
+      [uuid]
+    );
 
 
     if(!file || !file.file_key) {

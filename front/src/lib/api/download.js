@@ -53,6 +53,12 @@ export async function getThumbnailUrl(messageId) {
       return response.url;
     }
   } catch {}
-  thumbnailUrlCache.set(messageId, null);
+  // Don't cache a failure: the thumbnail may still be generating, so a later
+  // thumbnail:ready event should be able to retry the request.
   return null;
+}
+
+/** Drops any cached thumbnail URL so the next request re-fetches a fresh one. */
+export function invalidateThumbnailCache(messageId) {
+  thumbnailUrlCache.delete(messageId);
 }
