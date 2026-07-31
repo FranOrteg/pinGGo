@@ -5,6 +5,33 @@ let pdfjsLib = null;
 let pdfjsLoading = false;
 let pdfjsPromise = null;
 
+const TEXT_MIME_TYPES = new Set([
+  'text/plain',
+  'text/csv',
+  'text/html',
+  'text/css',
+  'text/javascript',
+  'text/xml',
+  'text/markdown',
+  'application/json',
+  'application/javascript',
+  'application/xml',
+]);
+
+const OFFICE_BINARY_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'application/x-7z-compressed',
+]);
+
 async function loadPdfJs() {
   if (pdfjsLib) return pdfjsLib;
   if (pdfjsLoading) return pdfjsPromise;
@@ -27,19 +54,11 @@ async function loadPdfJs() {
 
 export function isPreviewable(fileType) {
   if (!fileType) return false;
+  if (OFFICE_BINARY_TYPES.has(fileType)) return false;
   return (
+    fileType === 'text/csv' ||
     fileType.includes('pdf') ||
-    fileType.includes('csv') ||
-    fileType.includes('sheet') ||
-    fileType.includes('excel') ||
-    fileType.includes('text') ||
-    fileType.includes('json') ||
-    fileType.includes('javascript') ||
-    fileType.includes('typescript') ||
-    fileType.includes('html') ||
-    fileType.includes('css') ||
-    fileType.includes('xml') ||
-    fileType.includes('markdown')
+    isTextLike(fileType)
   );
 }
 
@@ -49,25 +68,12 @@ export function isPdf(fileType) {
 
 export function isCsvOrSheet(fileType) {
   if (!fileType) return false;
-  return (
-    fileType.includes('csv') ||
-    fileType.includes('sheet') ||
-    fileType.includes('excel')
-  );
+  return fileType === 'text/csv';
 }
 
 export function isTextLike(fileType) {
   if (!fileType) return false;
-  return (
-    fileType.includes('text') ||
-    fileType.includes('json') ||
-    fileType.includes('javascript') ||
-    fileType.includes('typescript') ||
-    fileType.includes('html') ||
-    fileType.includes('css') ||
-    fileType.includes('xml') ||
-    fileType.includes('markdown')
-  );
+  return TEXT_MIME_TYPES.has(fileType);
 }
 
 async function fetchTextContent(messageId) {
