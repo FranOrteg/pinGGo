@@ -6,16 +6,52 @@ import config from '../config/index.js';
 import { queryOne } from '../db/pool.js';
 
 const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+
+  // PDF
   'application/pdf',
+
+  // Microsoft Word
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+
+  // Microsoft Excel
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/zip', 'application/x-zip-compressed',
-  'text/plain', 'text/csv',
-  'video/mp4', 'video/webm',
-  'audio/mpeg', 'audio/ogg', 'audio/wav',
+
+  // Microsoft PowerPoint
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+
+  // Archives
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'application/x-7z-compressed',
+
+  // Text / Data
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'text/xml',
+
+  // Video
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+
+  // Audio
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
+  'audio/mp4',
 ]);
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
