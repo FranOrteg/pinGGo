@@ -21,7 +21,7 @@ export async function getFileFromDatabase(uuid) {
         throw new Error('UUID is required');
     }
 
-    const file = await queryOne('SELECT file_key, file_name, channel_id FROM messages WHERE uuid = ?', [uuid]);
+    const file = await queryOne('SELECT file_key, file_name, file_type, channel_id FROM messages WHERE uuid = ?', [uuid]);
 
 
     if(!file || !file.file_key) {
@@ -32,7 +32,7 @@ export async function getFileFromDatabase(uuid) {
 };
 
 /** Verifies the requesting user belongs to the channel that owns the file. */
-async function assertChannelMembership(channelId, userUuid) {
+export async function assertChannelMembership(channelId, userUuid) {
     const member = await queryOne(
         `SELECT 1 FROM channel_members cm
          JOIN users u ON u.id = cm.user_id

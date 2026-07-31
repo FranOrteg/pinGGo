@@ -1,4 +1,4 @@
-import { getViewUrl } from '../api/download.js';
+import { getViewUrl, getThumbnailUrl } from '../api/download.js';
 
 const previewCache = new Map();
 let pdfjsLib = null;
@@ -54,12 +54,17 @@ async function loadPdfJs() {
 
 export function isPreviewable(fileType) {
   if (!fileType) return false;
-  if (OFFICE_BINARY_TYPES.has(fileType)) return false;
   return (
     fileType === 'text/csv' ||
     fileType.includes('pdf') ||
-    isTextLike(fileType)
+    isTextLike(fileType) ||
+    OFFICE_BINARY_TYPES.has(fileType)
   );
+}
+
+export function isOfficeType(fileType) {
+  if (!fileType) return false;
+  return OFFICE_BINARY_TYPES.has(fileType);
 }
 
 export function isPdf(fileType) {
@@ -184,4 +189,13 @@ export async function getTextPreview(messageId) {
 
   previewCache.set(cacheKey, truncated);
   return truncated;
+}
+
+export async function getOfficeThumbnail(messageId) {
+  const cacheKey = `office:${messageId}`;
+  if (previewCache.has(cacheKey)) return previewCache.get(cacheKey);
+
+  const url = await getThumbnailUrl(messageId);
+  previewCache.set(cacheKey, url);
+  return url;
 }

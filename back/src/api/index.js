@@ -5,6 +5,7 @@ import channelsRouter from './channels/router.js';
 import messagesRouter from './messages/router.js';
 import uploadRouter from './upload/router.js';
 import downloadRouter from './download/router.js';
+import thumbnailsRouter from './thumbnails/router.js';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/channels', channelsRouter);
 router.use('/messages', messagesRouter);
 router.use('/upload', uploadRouter);
 router.use('/download', downloadRouter);
+router.use('/thumbnails', thumbnailsRouter);
 
 export default router;

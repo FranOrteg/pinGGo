@@ -15,9 +15,11 @@
     isPdf,
     isCsvOrSheet,
     isTextLike,
+    isOfficeType,
     getPdfPreviewDataUrl,
     getCsvPreview,
     getTextPreview,
+    getOfficeThumbnail,
   } from "$lib/utils/filePreview.js";
 
   import pdfIcon from "$lib/assets/pdf.svg";
@@ -51,10 +53,15 @@
   let previewError = false;
   let loadedPreviewUuid = null;
 
+  let thumbnailUrl = null;
+  let thumbnailLoading = false;
+  let loadedThumbUuid = null;
+
   $: isOwn = message.user_uuid === $authUser?.uuid;
   $: reactions = message.reactions ?? [];
   $: hasImage = message.file_key && isImage(message.file_type);
   $: hasPreviewableFile = message.file_key && !hasImage && isPreviewable(message.file_type);
+  $: hasOfficeFile = message.file_key && !hasImage && isOfficeType(message.file_type);
 
   function getFileIcon(fileType) {
     if (!fileType) return txtIcon;
@@ -81,10 +88,10 @@
 
   async function loadPreview() {
     if (!hasPreviewableFile) return;
+    if (isOfficeType(message.file_type)) return;
     if (!message.uuid || message.uuid.startsWith('temp-')) return;
-    if (loadedPreviewUuid === message.uuid) return; // Ya cargada para este UUID
+    if (loadedPreviewUuid === message.uuid) return;
 
-    // Resetear estados al cambiar de UUID
     if (loadedPreviewUuid !== message.uuid) {
       previewData = null;
       previewLoaded = false;
@@ -116,8 +123,35 @@
     }
   }
 
-  $: if (hasPreviewableFile && message.uuid && message.uuid !== loadedPreviewUuid) {
+  $: if (hasPreviewableFile && !isOfficeType(message.file_type) && message.uuid && message.uuid !== loadedPreviewUuid) {
     loadPreview();
+  }
+
+  async function loadThumbnail() {
+    if (!hasOfficeFile) return;
+    if (!message.uuid || message.uuid.startsWith('temp-')) return;
+    if (loadedThumbUuid === message.uuid) return;
+
+    if (loadedThumbUuid !== message.uuid) {
+      thumbnailUrl = null;
+      loadedThumbUuid = message.uuid;
+    }
+
+    if (thumbnailLoading) return;
+    thumbnailLoading = true;
+
+    try {
+      const url = await getOfficeThumbnail(message.uuid);
+      if (loadedThumbUuid === message.uuid) thumbnailUrl = url;
+    } catch (err) {
+      console.error('[MessageItem] Thumbnail load failed:', err);
+    } finally {
+      thumbnailLoading = false;
+    }
+  }
+
+  $: if (hasOfficeFile && message.uuid && message.uuid !== loadedThumbUuid) {
+    loadThumbnail();
   }
 
   function loadAvatar(userUuid, avatarKey) {
@@ -433,6 +467,14 @@
                       <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
                     {/if}
                   </div>
+                {:else if thumbnailUrl}
+                  <div class="doc-card__preview">
+                    <img
+                      src={thumbnailUrl}
+                      alt="Preview of {message.file_name}"
+                      class="attachment__preview-img"
+                    />
+                  </div>
                 {/if}
               </div>
             {/if}
@@ -577,6 +619,14 @@
                     {:else if previewData.type === 'text'}
                       <pre class="attachment__preview-code"><code>{previewData.content}</code></pre>
                     {/if}
+                  </div>
+                {:else if thumbnailUrl}
+                  <div class="doc-card__preview">
+                    <img
+                      src={thumbnailUrl}
+                      alt="Preview of {message.file_name}"
+                      class="attachment__preview-img"
+                    />
                   </div>
                 {/if}
               </div>
