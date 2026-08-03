@@ -6,6 +6,7 @@ import messagesRouter from './messages/router.js';
 import uploadRouter from './upload/router.js';
 import downloadRouter from './download/router.js';
 import thumbnailsRouter from './thumbnails/router.js';
+import previewsRouter from './previews/router.js';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/messages', messagesRouter);
 router.use('/upload', uploadRouter);
 router.use('/download', downloadRouter);
 router.use('/thumbnails', thumbnailsRouter);
+router.use('/previews', previewsRouter);
 
 export default router;

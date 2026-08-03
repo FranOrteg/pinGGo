@@ -21,6 +21,8 @@
     getTextPreview,
     getOfficeThumbnail,
   } from "$lib/utils/filePreview.js";
+  import LinkPreview from "./LinkPreview.svelte";
+  import { extractFirstUrl } from "$lib/utils/linkPreview.js";
 
   import pdfIcon from "$lib/assets/pdf.svg";
   import csvIcon from "$lib/assets/csv.svg";
@@ -65,6 +67,7 @@
     message.file_key && !hasImage && isPreviewable(message.file_type);
   $: hasOfficeFile =
     message.file_key && !hasImage && isOfficeType(message.file_type);
+  $: previewUrl = message.content ? extractFirstUrl(message.content) : null;
 
   function getFileIcon(fileType) {
     if (!fileType) return txtIcon;
@@ -461,6 +464,9 @@
         {#if message.content}
           <p class="message__content">{message.content}</p>
         {/if}
+        {#if previewUrl}
+          <LinkPreview url={previewUrl} />
+        {/if}
         {#if message.file_key}
           <div class="attachment">
             {#if isImage(message.file_type)}
@@ -655,6 +661,9 @@
             {message.content}{#if message.edited_at}
               <span class="message__edited">(edited)</span>{/if}
           </p>
+        {/if}
+        {#if previewUrl}
+          <LinkPreview url={previewUrl} />
         {/if}
         {#if message.file_key}
           <div class="attachment">
