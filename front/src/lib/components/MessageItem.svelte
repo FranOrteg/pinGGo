@@ -22,6 +22,7 @@
     getOfficeThumbnail,
   } from "$lib/utils/filePreview.js";
   import LinkPreview from "./LinkPreview.svelte";
+  import MessageContent from "./MessageContent.svelte";
   import { extractFirstUrl } from "$lib/utils/linkPreview.js";
 
   import pdfIcon from "$lib/assets/pdf.svg";
@@ -462,7 +463,7 @@
         </div>
       {:else}
         {#if message.content}
-          <p class="message__content">{message.content}</p>
+          <p class="message__content"><MessageContent content={message.content} /></p>
         {/if}
         {#if previewUrl}
           <LinkPreview url={previewUrl} />
@@ -658,7 +659,7 @@
       {:else}
         {#if message.content}
           <p class="message__content">
-            {message.content}{#if message.edited_at}
+            <MessageContent content={message.content} />{#if message.edited_at}
               <span class="message__edited">(edited)</span>{/if}
           </p>
         {/if}

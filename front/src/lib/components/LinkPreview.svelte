@@ -16,6 +16,7 @@
     loading = true;
     preview = null;
     playing = false;
+    faviconFailed = false;
     preview = await getLinkPreview(u);
     loading = false;
   }
@@ -39,34 +40,42 @@
   function onFaviconError() {
     faviconFailed = true;
   }
+
+  function isFacebookPreview(p) {
+    const d = (p?.domain || "").toLowerCase();
+    return d === "facebook.com" || d.endsWith(".facebook.com") || d === "fb.com" || d.endsWith(".fb.com");
+  }
 </script>
 
 {#if preview}
   <div
     class="link-preview"
     class:link-preview--youtube={!!preview.videoId}
+    class:link-preview--facebook={isFacebookPreview(preview)}
   >
     {#if preview.videoId && playing}
-      <div class="link-preview__embed">
-        <iframe
-          src="{preview.embedUrl}?autoplay=1"
-          title="YouTube video player"
-          frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen
-          loading="lazy"
-        ></iframe>
-      </div>
-      <div class="link-preview__actions">
-        <a
-          href={preview.canonicalUrl || url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link-preview__action-link"
-        >
-          Abrir en YouTube
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h7v7M13 3L5 11M8 13H4a1 1 0 01-1-1V8"/></svg>
-        </a>
+      <div class="link-preview__card link-preview__card--playing">
+        <div class="link-preview__embed">
+          <iframe
+            src="{preview.embedUrl}?autoplay=1"
+            title="YouTube video player"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            loading="lazy"
+          ></iframe>
+        </div>
+        <div class="link-preview__actions">
+          <a
+            href={preview.canonicalUrl || url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link-preview__action-link"
+          >
+            Abrir en YouTube
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h7v7M13 3L5 11M8 13H4a1 1 0 01-1-1V8"/></svg>
+          </a>
+        </div>
       </div>
     {:else}
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -120,7 +129,6 @@
           {#if preview.description}
             <p class="link-preview__description">{preview.description}</p>
           {/if}
-          <span class="link-preview__url">{preview.canonicalUrl || url}</span>
         </div>
       </div>
     {/if}
@@ -140,8 +148,10 @@
 
 <style>
   .link-preview {
-    margin-top: 6px;
-    max-width: 360px;
+    margin-top: 10px;
+    margin-bottom: 8px;
+    width: 100%;
+    max-width: 500px;
   }
 
   /* ── Card ── */
@@ -156,71 +166,95 @@
     color: var(--color-text);
     text-align: left;
     font: inherit;
-    transition: border-color 0.15s ease-out;
     outline: none;
+    transition: border-color 0.15s ease-out, background 0.15s ease-out;
   }
   .link-preview__card:hover {
-    border-color: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.02);
   }
   .link-preview__card:focus-visible {
     outline: 1px solid var(--color-accent);
     outline-offset: -1px;
   }
 
+  /* Playing and loading states aren't whole-card actions — keep them static. */
+  .link-preview__card--playing,
+  .link-preview__card--loading {
+    cursor: default;
+  }
+  .link-preview__card--playing:hover,
+  .link-preview__card--loading:hover {
+    border-color: var(--color-border);
+    background: var(--color-surface);
+  }
+
   .link-preview__media {
     position: relative;
-    border-bottom: 1px solid var(--color-border);
+    aspect-ratio: 16 / 9;
     background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--color-border);
   }
   .link-preview__thumb {
     display: block;
     width: 100%;
-    height: 150px;
+    height: 100%;
     object-fit: cover;
+  }
+
+  /* Facebook og:images are square — keep the thumbnail compact, not a 16:9 block. */
+  .link-preview--facebook .link-preview__media {
+    aspect-ratio: auto;
+    height: 280px;
   }
 
   .link-preview__play {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: 46px;
-    height: 46px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     border: none;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s ease-out, transform 0.15s ease-out;
+    background: rgba(15, 17, 20, 0.72);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3), 0 4px 12px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
+    transition: background 0.15s ease-out, box-shadow 0.15s ease-out, transform 0.15s ease-out;
   }
   .link-preview__play:hover {
     background: var(--color-accent);
-    transform: scale(1.06);
+    box-shadow: 0 0 0 1px var(--color-accent), 0 4px 14px rgba(0, 0, 0, 0.4);
+    transform: scale(1.05);
+  }
+  .link-preview__play:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
   .link-preview__play svg {
-    width: 20px;
-    height: 20px;
-    margin-left: 2px;
+    width: 22px;
+    height: 22px;
+    margin-left: 3px;
   }
 
   .link-preview__body {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 10px 12px 11px;
+    gap: 4px;
+    padding: 12px 14px 13px;
     min-width: 0;
   }
   .link-preview__meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--color-text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
   .link-preview__favicon {
     width: 14px;
@@ -238,6 +272,10 @@
     margin-left: auto;
     display: flex;
     opacity: 0.6;
+    transition: opacity 0.15s ease-out;
+  }
+  .link-preview__card:hover .link-preview__open-icon {
+    opacity: 1;
   }
   .link-preview__open-icon svg {
     width: 13px;
@@ -245,15 +283,16 @@
   }
   .link-preview__title {
     margin: 0;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    line-height: 1.35;
+    line-height: 1.4;
     color: var(--color-text);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    line-clamp: 2;
     overflow: hidden;
-    word-break: break-word;
+    word-break: ellipsis;
   }
   .link-preview__description {
     margin: 0;
@@ -263,17 +302,15 @@
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    line-clamp: 2;
     overflow: hidden;
-    word-break: break-word;
+    word-break:ellipsis;
   }
-  .link-preview__url {
-    margin-top: 2px;
-    font-size: 11px;
-    color: var(--color-text-muted);
-    opacity: 0.75;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+
+  /* YouTube cards end at the title — no description or trailing URL footer. */
+  .link-preview--youtube .link-preview__description
+  {
+    display: none;
   }
 
   /* ── YouTube embed ── */
@@ -293,7 +330,7 @@
   .link-preview__actions {
     display: flex;
     justify-content: flex-end;
-    padding: 8px 12px;
+    padding: 8px 14px;
     border-top: 1px solid var(--color-border);
   }
   .link-preview__action-link {
@@ -317,9 +354,6 @@
   }
 
   /* ── Loading skeleton ── */
-  .link-preview__card--loading {
-    cursor: default;
-  }
   .link-preview__skeleton {
     background: rgba(255, 255, 255, 0.06);
     border-radius: 4px;
@@ -335,7 +369,8 @@
     animation: link-preview-shimmer 1.4s infinite;
   }
   .link-preview__skeleton--thumb {
-    height: 150px;
+    aspect-ratio: 16 / 9;
+    height: auto;
     border-radius: 0;
   }
   .link-preview__skeleton--line {
@@ -348,6 +383,12 @@
   @keyframes link-preview-shimmer {
     to {
       transform: translateX(100%);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .link-preview {
+      max-width: 100%;
     }
   }
 </style>

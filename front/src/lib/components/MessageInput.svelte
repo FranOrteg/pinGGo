@@ -1,6 +1,7 @@
 <script>
   import { sendMessage, notifyTyping } from '$lib/stores/messages.js';
   import { uploadFile, formatFileSize } from '$lib/api/upload.js';
+  import { splitByUrl } from '$lib/utils/urlText.js';
 
   export let channelId;
 
@@ -8,6 +9,10 @@
   let error = '';
   let textarea;
   let fileInput;
+  let scrollTop = 0;
+  let scrollLeft = 0;
+
+  $: parts = splitByUrl(value);
 
   // File attachment state
   let pendingFile = null;   // File object
@@ -25,6 +30,11 @@
     error = '';
     notifyTyping(channelId);
     autoResize();
+  }
+
+  function syncScroll(e) {
+    scrollTop = e.currentTarget.scrollTop;
+    scrollLeft = e.currentTarget.scrollLeft;
   }
 
   function autoResize() {
@@ -117,16 +127,34 @@
       on:change={onFileSelected}
     />
 
-    <textarea
-      bind:this={textarea}
-      bind:value
-      on:keydown={handleKeydown}
-      on:input={handleInput}
-      placeholder="Message…"
-      rows="1"
-      aria-label="Message input"
-      disabled={uploading}
-    ></textarea>
+    <div class="input-field">
+      <div class="input-highlight" aria-hidden="true">
+        <span
+          class="input-highlight__inner"
+          style="transform: translate({-scrollLeft}px, {-scrollTop}px)"
+        >
+          {#each parts as part, i (i)}
+            {#if part.type === 'url'}
+              <span class="input-highlight__url">{part.value}</span>
+            {:else}
+              {part.value}
+            {/if}
+          {/each}
+        </span>
+      </div>
+
+      <textarea
+        bind:this={textarea}
+        bind:value
+        on:keydown={handleKeydown}
+        on:input={handleInput}
+        on:scroll={syncScroll}
+        placeholder="Message…"
+        rows="1"
+        aria-label="Message input"
+        disabled={uploading}
+      ></textarea>
+    </div>
 
     <button
       class="send-btn"
@@ -263,21 +291,59 @@
 
   .file-input-hidden { display: none; }
 
-  textarea {
+  .input-field {
+    position: relative;
     flex: 1;
+    min-width: 0;
+  }
+  .input-highlight {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 2px 6px;
+    color: var(--color-text);
+    font-size: 14px;
+    line-height: 1.5;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    pointer-events: none;
+  }
+  .input-highlight__inner {
+    display: block;
+    will-change: transform;
+  }
+  .input-highlight__url {
+    color: var(--color-accent);
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
     background: none;
     border: none;
     outline: none;
-    color: var(--color-text);
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--color-text);
     font-size: 14px;
     line-height: 1.5;
     resize: none;
     min-height: 22px;
     max-height: 180px;
     font-family: inherit;
-    padding-left: 6px;
+    padding: 2px 6px;
+    scrollbar-width: none;
   }
-  textarea::placeholder { color: var(--color-text-muted); }
+  textarea::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+  textarea::placeholder {
+    color: var(--color-text-muted);
+    -webkit-text-fill-color: var(--color-text-muted);
+  }
   textarea:disabled { opacity: 0.6; }
 
   .send-btn {
