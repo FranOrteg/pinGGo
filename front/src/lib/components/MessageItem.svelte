@@ -1160,7 +1160,6 @@
     position: relative;
     display: inline-block;
     max-width: 360px;
-    border: 1px solid var(--color-border);
     border-radius: 8px;
     overflow: hidden;
   }
