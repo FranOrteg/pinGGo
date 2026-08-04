@@ -227,25 +227,71 @@
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function getFileTypeLabel(fileType) {
-    if (!fileType) return "File";
-    if (fileType.includes("pdf")) return "PDF";
-    if (fileType.includes("csv")) return "CSV";
-    if (fileType.includes("sheet") || fileType.includes("excel"))
-      return "Spreadsheet";
-    if (fileType.includes("word") || fileType.includes("doc"))
-      return "Document";
-    if (fileType.includes("zip") || fileType.includes("archive"))
-      return "Archive";
-    if (fileType.includes("json")) return "JSON";
-    if (fileType.includes("javascript")) return "JavaScript";
-    if (fileType.includes("typescript")) return "TypeScript";
-    if (fileType.includes("html")) return "HTML";
-    if (fileType.includes("css")) return "CSS";
-    if (fileType.includes("xml")) return "XML";
-    if (fileType.includes("markdown")) return "Markdown";
-    if (fileType.includes("text")) return "Text";
-    return "File";
+  function getAttachmentTypeLabel(fileType, fileName = "") {
+    const type = (fileType || "").toString().toLowerCase();
+
+    if (type) {
+      if (type.includes("pdf")) return "PDF";
+      if (type.includes("csv")) return "CSV";
+      if (type.includes("sheet") || type.includes("excel"))
+        return "Hoja de cálculo";
+      if (
+        type.includes("msword") ||
+        type.includes("wordprocessingml") ||
+        type.includes("ms-word")
+      )
+        return "Documento";
+      if (
+        type.includes("presentationml") ||
+        type.includes("ms-powerpoint") ||
+        type.includes("powerpoint")
+      )
+        return "Presentación de PowerPoint";
+      if (
+        type.includes("portable-executable") ||
+        type.includes("msdownload") ||
+        type.includes("vnd.microsoft.portable-executable")
+      )
+        return "Aplicación de Windows";
+      if (type.includes("zip") || type.includes("compressed") || type.includes("archive"))
+        return "ZIP";
+      if (type.includes("json")) return "JSON";
+      if (type.includes("svg")) return "SVG";
+      if (type.includes("xml")) return "XML";
+      if (type.includes("image")) return fileType.replace('image/',"").toUpperCase();
+      if (type.includes("text")) return "Texto";
+    }
+
+    const ext = (fileName || "").toLowerCase().split(".").pop();
+    if (ext) {
+      if (ext === "pdf") return "PDF";
+      if (ext === "csv") return "CSV";
+      if (ext === "xls" || ext === "xlsx" || ext === "xlsm")
+        return "Hoja de cálculo";
+      if (ext === "doc" || ext === "docx" || ext === "odt")
+        return "Documento";
+      if (ext === "ppt" || ext === "pptx" || ext === "pptm" || ext === "odp")
+        return "Presentación de PowerPoint";
+      if (ext === "exe") return "Aplicación de Windows";
+      if (ext === "zip" || ext === "rar" || ext === "7z" || ext === "tar" || ext === "gz")
+        return "ZIP";
+      if (ext === "txt" || ext === "md") return "Texto";
+      if (ext === "xml") return "XML";
+      if (ext === "json") return "JSON";
+      if (ext === "svg") return "SVG";
+      if (
+        ext === "png" ||
+        ext === "jpg" ||
+        ext === "jpeg" ||
+        ext === "webp" ||
+        ext === "gif" ||
+        ext === "bmp" ||
+        ext === "ico"
+      )
+        return "Imagen";
+    }
+
+    return "Archivo";
   }
 
   function startEdit() {
@@ -469,6 +515,9 @@
           <LinkPreview url={previewUrl} />
         {/if}
         {#if message.file_key}
+          <div class="attachment__type">
+            {getAttachmentTypeLabel(message.file_type, message.file_name)}
+          </div>
           <div class="attachment">
             {#if isImage(message.file_type)}
               {#if imageUrl}
@@ -524,8 +573,9 @@
                   <div class="doc-card__info">
                     <span class="doc-card__name">{message.file_name}</span>
                     <span class="doc-card__type-label">
-                      {getFileTypeLabel(
+                      {getAttachmentTypeLabel(
                         message.file_type,
+                        message.file_name,
                       )}{#if message.file_size}
                         · {formatFileSize(message.file_size)}{/if}
                     </span>
@@ -667,6 +717,9 @@
           <LinkPreview url={previewUrl} />
         {/if}
         {#if message.file_key}
+          <div class="attachment__type">
+            {getAttachmentTypeLabel(message.file_type, message.file_name)}
+          </div>
           <div class="attachment">
             {#if isImage(message.file_type)}
               {#if imageUrl}
@@ -722,8 +775,9 @@
                   <div class="doc-card__info">
                     <span class="doc-card__name">{message.file_name}</span>
                     <span class="doc-card__type-label">
-                      {getFileTypeLabel(
+                      {getAttachmentTypeLabel(
                         message.file_type,
+                        message.file_name,
                       )}{#if message.file_size}
                         · {formatFileSize(message.file_size)}{/if}
                     </span>
@@ -1091,6 +1145,16 @@
   .attachment {
     margin-top: 6px;
     margin-bottom: 6px;
+  }
+  .attachment__type {
+    margin-top: 3px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+  }
+  .attachment__type + .attachment {
+    margin-top: 1px;
   }
   .attachment__image-wrapper {
     position: relative;
