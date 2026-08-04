@@ -131,7 +131,7 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/pinGGo.git
+   git clone https://github.com/franOrteg/pinGGo.git
    cd pinGGo
    ```
 

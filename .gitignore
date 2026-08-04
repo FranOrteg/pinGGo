@@ -23,3 +23,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# AI / editor local configuration
+.claude/
+.codex/
+.cursor/
+.impeccable/
