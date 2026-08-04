@@ -170,8 +170,8 @@
     transition: border-color 0.15s ease-out, background 0.15s ease-out;
   }
   .link-preview__card:hover {
-    border-color: rgba(255, 255, 255, 0.32);
-    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--color-surface-hover);
+    background: var(--color-hover);
   }
   .link-preview__card:focus-visible {
     outline: 1px solid var(--color-accent);
@@ -192,7 +192,7 @@
   .link-preview__media {
     position: relative;
     aspect-ratio: 16 / 9;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--color-hover);
     border-bottom: 1px solid var(--color-border);
   }
   .link-preview__thumb {
@@ -220,15 +220,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(15, 17, 20, 0.72);
-    color: #fff;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3), 0 4px 12px rgba(0, 0, 0, 0.35);
+    background: var(--color-overlay);
+    color: var(--color-btn-text);
+    box-shadow: 0 0 0 1px var(--color-border), 0 4px 12px var(--color-card-shadow);
     backdrop-filter: blur(2px);
     transition: background 0.15s ease-out, box-shadow 0.15s ease-out, transform 0.15s ease-out;
   }
   .link-preview__play:hover {
     background: var(--color-accent);
-    box-shadow: 0 0 0 1px var(--color-accent), 0 4px 14px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 1px var(--color-accent), 0 4px 14px var(--color-card-shadow);
     transform: scale(1.05);
   }
   .link-preview__play:focus-visible {
@@ -346,7 +346,7 @@
     transition: background 0.15s ease-out;
   }
   .link-preview__action-link:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-hover);
   }
   .link-preview__action-link svg {
     width: 13px;
@@ -355,7 +355,7 @@
 
   /* ── Loading skeleton ── */
   .link-preview__skeleton {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-hover);
     border-radius: 4px;
     position: relative;
     overflow: hidden;
@@ -365,7 +365,7 @@
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-hover-strong), transparent);
     animation: link-preview-shimmer 1.4s infinite;
   }
   .link-preview__skeleton--thumb {

@@ -8,6 +8,30 @@
   --color-online: #3abf7e;
   --color-away: #e0b94a;
   --color-dnd: #e05a4e;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-hover-strong: rgba(255, 255, 255, 0.1);
+  --color-surface-hover: rgba(255, 255, 255, 0.22);
+  --color-btn-text: #fff;
+  --color-card-shadow: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-border: #e0e0e0;
+  --color-text: #1a1d21;
+  --color-text-muted: #6b7280;
+  --color-accent: #3b6fd9;
+  --color-online: #22a05c;
+  --color-away: #c9920a;
+  --color-dnd: #c9413a;
+  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-hover-strong: rgba(0, 0, 0, 0.08);
+  --color-surface-hover: rgba(0, 0, 0, 0.08);
+  --color-btn-text: #fff;
+  --color-card-shadow: rgba(0, 0, 0, 0.08);
 }
 
 *,

@@ -36,7 +36,7 @@
     border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 6px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 16px var(--color-card-shadow);
     width: max-content;
   }
 

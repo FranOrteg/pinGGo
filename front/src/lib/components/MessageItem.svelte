@@ -892,7 +892,7 @@
     transition: background 0.15s ease-out;
   }
   .message:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-hover);
   }
 
   /* ── Avatar ── */
@@ -1000,7 +1000,7 @@
     border: 1px solid var(--color-border);
     border-radius: 6px;
     padding: 2px 2px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 4px var(--color-card-shadow);
   }
   .action-btn {
     display: flex;
@@ -1119,7 +1119,7 @@
     display: flex;
     align-items: center;
     gap: 3px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-hover);
     border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1px 7px;
@@ -1130,10 +1130,10 @@
       border-color 0.15s ease-out;
   }
   .reaction-chip:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-hover-strong);
   }
   .reaction-chip--mine {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-hover-strong);
   }
   .reaction-count {
     font-size: 12px;
@@ -1185,7 +1185,7 @@
     border: none;
     outline: none;
     box-shadow: none;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-btn-text);
     cursor: pointer;
     transition:
       opacity 0.15s ease-out,
@@ -1213,7 +1213,7 @@
       color 0.15s ease-out;
   }
   .attachment__download:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-hover-strong);
     color: var(--color-text);
   }
   .attachment__download svg {
@@ -1254,7 +1254,7 @@
   .attachment__preview-table th {
     font-weight: 600;
     color: var(--color-text);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-hover);
     position: sticky;
     top: 0;
   }
@@ -1297,7 +1297,7 @@
     outline: none;
   }
   .doc-card:hover {
-    border-color: rgba(255, 255, 255, 0.22);
+    border-color: var(--color-surface-hover);
   }
   .doc-card:focus-visible {
     outline: 1px solid var(--color-accent);
@@ -1360,7 +1360,7 @@
       color 0.15s ease-out;
   }
   .doc-card__download:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-hover-strong);
     color: var(--color-text);
   }
   .doc-card__download svg {
@@ -1374,7 +1374,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--color-hover);
     max-height: 220px;
   }
   .doc-card__preview .attachment__preview-img {
@@ -1398,7 +1398,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 28px 0;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--color-hover);
   }
   .doc-card__preview-spinner {
     width: 18px;

@@ -211,7 +211,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(8, 10, 13, 0.72);
+    background: var(--color-overlay);
     backdrop-filter: blur(3px);
     display: flex;
     align-items: center;
@@ -221,9 +221,9 @@
   }
   .modal {
     background: var(--color-surface);
-    border: 1px solid #373b42;
+    border: 1px solid var(--color-border);
     border-radius: 14px;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 24px 80px var(--color-card-shadow);
     overflow: hidden;
     width: 100%;
     max-width: 500px;
@@ -319,9 +319,9 @@
     text-align: left;
     transition: border-color .15s, background .15s, box-shadow .15s;
   }
-  .visibility-option:hover { border-color: #4b515a; }
+  .visibility-option:hover { border-color: var(--color-border); }
   .visibility-option--selected { border-color: var(--color-accent); background: rgba(79, 142, 247, .1); box-shadow: inset 0 0 0 1px rgba(79, 142, 247, .35); }
-  .visibility-option__icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,.06); color: var(--color-text); font-size: 14px; flex-shrink: 0; }
+  .visibility-option__icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--color-hover); color: var(--color-text); font-size: 14px; flex-shrink: 0; }
   .icon-lock { width: 18px; height: 18px; fill: currentColor; }
   .visibility-option span:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .visibility-option strong { color: var(--color-text); font-size: 13px; }

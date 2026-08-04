@@ -127,7 +127,7 @@
 </div>
 
 <style>
-  .modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, .56); }
+  .modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: var(--color-overlay); }
   .backdrop-dismiss { position: absolute; inset: 0; border: 0; background: transparent; cursor: default; }
   .members-modal { position: relative; z-index: 1; width: min(560px, 100%); max-height: min(680px, calc(100dvh - 48px)); overflow: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.4); }
   .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; border-bottom: 1px solid var(--color-border); }
