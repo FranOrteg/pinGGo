@@ -11,7 +11,7 @@
 [![Redis](https://img.shields.io/badge/Redis-7.x-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=for-the-badge&logo=amazon-s3&logoColor=white)](https://aws.amazon.com/s3/)
 
-*Deep integration with the Skylab platform — A messaging experience purpose-built for internal team communication*
+*Deep integration with Skylab platform — A messaging experience purpose-built for internal team communication*
 
 [Features](#-features) • [Demo](#-screenshots) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Architecture](#-architecture)
 
