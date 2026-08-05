@@ -133,22 +133,24 @@
 
   <div class="profile__body">
     <div class="profile__avatar-section">
-      <div class="profile__avatar" style="background: {avatarColor(user.username)}">
-        {#if avatarUrl}
-          <img src={avatarUrl} alt="Profile photo of {user.username}" />
-        {:else}
-          {user.username[0].toUpperCase()}
-        {/if}
-        {#if avatarUploading}
-          <div class="profile__avatar-overlay">
-            <div class="profile__avatar-spinner"></div>
-          </div>
-        {/if}
+      <div class="profile__avatar-wrap">
+        <div class="profile__avatar" style="background: {avatarColor(user.username)}">
+          {#if avatarUrl}
+            <img src={avatarUrl} alt="Profile photo of {user.username}" />
+          {:else}
+            {user.username[0].toUpperCase()}
+          {/if}
+          {#if avatarUploading}
+            <div class="profile__avatar-overlay">
+              <div class="profile__avatar-spinner"></div>
+            </div>
+          {/if}
+        </div>
+        <label class="profile__avatar-camera" title="Cambiar foto de perfil" aria-label="Cambiar foto de perfil">
+          <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" on:change={handleAvatarUpload} disabled={avatarUploading} />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </label>
       </div>
-      <label class="profile__avatar-action">
-        <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" on:change={handleAvatarUpload} disabled={avatarUploading} />
-        Cambiar foto de perfil
-      </label>
       {#if avatarError}
         <p class="profile__error">{avatarError}</p>
       {/if}
@@ -261,8 +263,14 @@
   .profile__avatar-section {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 12px;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .profile__avatar-wrap {
+    position: relative;
+    width: 128px;
+    height: 128px;
   }
 
   .profile__avatar {
@@ -276,7 +284,6 @@
     font-weight: 700;
     color: #fff;
     overflow: hidden;
-    position: relative;
   }
   .profile__avatar img {
     width: 100%;
@@ -300,15 +307,45 @@
     animation: spin 0.7s linear infinite;
   }
 
-  .profile__avatar-action {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-accent);
-    cursor: pointer;
-    transition: opacity 0.15s ease-out;
+  .profile__avatar-wrap:hover .profile__avatar-camera {
+    opacity: 1;
   }
-  .profile__avatar-action:hover { opacity: 0.8; }
-  .profile__avatar-action input {
+  .profile__avatar-camera {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    color: var(--color-btn-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    transition:
+      opacity 0.15s ease-out,
+      background 0.15s ease-out,
+      color 0.15s ease-out;
+  }
+  .profile__avatar-camera:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .profile__avatar-camera:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .profile__avatar-camera svg {
+    width: 14px;
+    height: 14px;
+  }
+  .profile__avatar-camera input {
     position: absolute;
     width: 1px;
     height: 1px;
