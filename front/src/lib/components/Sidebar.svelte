@@ -137,7 +137,7 @@
       <div class="user-chip">
         <button
           class="user-avatar"
-          style="background: {avatarColor($authUser.username)}"
+          style="background: {avatarUrl ? 'var(--color-surface)' : avatarColor($authUser.username)}"
           title="View profile"
           on:click={() => showProfile($activeChannelId)}
         >

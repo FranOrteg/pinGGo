@@ -134,7 +134,7 @@
   <div class="profile__body">
     <div class="profile__avatar-section">
       <div class="profile__avatar-wrap">
-        <div class="profile__avatar" style="background: {avatarColor(user.username)}">
+        <div class="profile__avatar" style="background: {avatarUrl ? 'var(--color-surface)' : avatarColor(user.username)}">
           {#if avatarUrl}
             <img src={avatarUrl} alt="Profile photo of {user.username}" />
           {:else}

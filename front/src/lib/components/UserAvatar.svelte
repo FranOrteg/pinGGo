@@ -34,7 +34,7 @@
 
 <div
   class="user-avatar"
-  style="width: {size}; height: {size}; border-radius: {radius}; background: {avatarColor(name)}"
+  style="width: {size}; height: {size}; border-radius: {radius}; background: {avatarUrl ? 'var(--color-surface)' : avatarColor(name)}"
   aria-label={name ? `Avatar of ${name}` : 'User avatar'}
   role="img"
 >

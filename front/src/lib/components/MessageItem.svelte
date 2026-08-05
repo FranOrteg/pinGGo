@@ -464,7 +464,7 @@
   {#if showHeader}
     <div
       class="message__avatar"
-      style="background: {avatarColor(message.username)}"
+      style="background: {avatarUrl ? 'var(--color-surface)' : avatarColor(message.username)}"
       aria-hidden="true"
     >
       {#if avatarUrl}
