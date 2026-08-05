@@ -19,32 +19,32 @@
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 <div align="center">
 
-### 🔐 Login Experience
+### Login Experience
 <img src="front/src/lib/assets/view1.png" alt="Login Interface" width="800" />
 
 *Secure authentication with JWT tokens and httpOnly cookies*
 
 <br/>
 
-### 📝 Create & Manage Channels
+### Create & Manage Channels
 <img src="front/src/lib/assets/view2.png" alt="Create Channel" width="800" />
 
 *Public and private channels for organized team communication*
 
 <br/>
 
-### 👥 Team Collaboration
+### Team Collaboration
 <img src="front/src/lib/assets/view3.png" alt="Channel Users" width="800" />
 
 *Manage channel members with real-time presence indicators*
 
 <br/>
 
-### 💬 Real-Time Chat & File Sharing
+### Real-Time Chat & File Sharing
 <img src="front/src/lib/assets/view4.png" alt="Chat Interface" width="800" />
 
 *Instant messaging with file uploads, link previews, and rich media support*
@@ -53,7 +53,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 ### 💬 **Real-Time Communication**
 - **WebSocket-powered messaging** with Socket.IO for instant delivery
@@ -92,7 +92,7 @@
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### **Frontend**
 - **[SvelteKit](https://kit.svelte.dev/)** 5.x - Modern full-stack framework
@@ -208,7 +208,7 @@ npm run dev
 
 ---
 
-## 📂 Architecture
+## Architecture
 
 ```
 pinGGo/
@@ -301,7 +301,7 @@ pinGGo/
 
 ---
 
-## 🧩 WebSocket Events
+## WebSocket Events
 
 ### Client → Server
 - `message:send` - Send new message
@@ -321,7 +321,7 @@ pinGGo/
 
 ---
 
-## 🎨 Design System
+## Design System
 
 PinGGo follows a **"Command Center"** design philosophy — a calm, dark interface that recedes into the background so conversations take center stage.
 
@@ -350,7 +350,7 @@ See [DESIGN.md](DESIGN.md) for the complete design system specification.
 
 ---
 
-## 🔒 Security Features
+## Security Features
 
 - **JWT Authentication** with access and refresh token rotation
 - **httpOnly Cookies** for refresh token storage (XSS protection)
@@ -364,7 +364,7 @@ See [DESIGN.md](DESIGN.md) for the complete design system specification.
 
 ---
 
-## 🧪 Database Schema
+## Database Schema
 
 ```sql
 -- Users table
@@ -399,32 +399,6 @@ message_reactions (
 )
 ```
 
----
-
-## 🚦 Getting Started - Quick Guide
-
-1. **First Time User?**
-   - Register a new account
-   - Create or join a channel
-   - Start messaging!
-
-2. **Create a Channel**
-   - Click "+" button in sidebar
-   - Choose public or private
-   - Invite team members
-
-3. **Send Files**
-   - Drag & drop files into message input
-   - Or click the attachment icon
-   - Supports images, documents, and more
-
-4. **Manage Presence**
-   - Set your status (Online, Away, DND, Offline)
-   - See who's available in real-time
-   - Get notified when mentioned
-
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -437,13 +411,13 @@ Contributions are welcome! Please follow these steps:
 
 ---
 
-## 📝 License
+## License
 
 This project is part of the **Skylab ecosystem** and is intended for internal organizational use.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built with ❤️ for modern team collaboration
 - Inspired by Slack, Discord, and modern chat platforms

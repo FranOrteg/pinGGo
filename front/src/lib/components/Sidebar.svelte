@@ -1,5 +1,5 @@
 <script>
-  import { channels, activeChannelId, setActiveChannel, currentChannel } from '$lib/stores/channels.js';
+  import { channels, activeChannelId, setActiveChannel } from '$lib/stores/channels.js';
   import { authUser, logout } from '$lib/stores/auth.js';
   import { presence } from '$lib/stores/presence.js';
   import { unread } from '$lib/stores/unread.js';
@@ -7,15 +7,14 @@
   import CreateChannelModal from './CreateChannelModal.svelte';
   import UserSearchModal from './UserSearchModal.svelte';
   import UserAvatar from './UserAvatar.svelte';
-  import { getAvatarUrl, uploadAvatar } from '$lib/api/avatar.js';
+  import { getAvatarUrl } from '$lib/api/avatar.js';
   import { currentTheme, toggleTheme } from '$lib/stores/theme.js';
+  import { showProfile, showChannel } from '$lib/stores/view.js';
 
   let showCreateChannel = false;
   let showUserSearch = false;
   let avatarUrl = null;
   let loadedAvatarKey = null;
-  let avatarUploading = false;
-  let avatarError = '';
 
   // Both public ('channel') and private channels the user belongs to are listed here.
   // Visibility/access itself is enforced backend-side via channel_members.
@@ -41,22 +40,6 @@
       getAvatarUrl(user.uuid, user.avatar_url).then((url) => {
         if (loadedAvatarKey === cacheKey) avatarUrl = url;
       }).catch(() => {});
-    }
-  }
-
-  async function handleAvatarChange(event) {
-    const [file] = event.currentTarget.files;
-    if (!file) return;
-    avatarUploading = true;
-    avatarError = '';
-    try {
-      const user = await uploadAvatar(file);
-      authUser.set(user);
-    } catch (error) {
-      avatarError = error.message || 'Could not upload profile photo';
-    } finally {
-      avatarUploading = false;
-      event.currentTarget.value = '';
     }
   }
 </script>
@@ -87,7 +70,7 @@
             <button
               class="nav-item"
               class:nav-item--active={$activeChannelId === ch.uuid}
-              on:click={() => setActiveChannel(ch.uuid)}
+              on:click={() => { showChannel(); setActiveChannel(ch.uuid); }}
             >
               <span class="nav-item__hash">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4.5 3l2 10M9.5 3l2 10M3 6.5h10M3 9.5h10"/></svg>
@@ -123,7 +106,7 @@
             <button
               class="nav-item"
               class:nav-item--active={$activeChannelId === dm.uuid}
-              on:click={() => setActiveChannel(dm.uuid)}
+              on:click={() => { showChannel(); setActiveChannel(dm.uuid); }}
             >
               <span class="nav-item__dm-dot">
                 <PresenceDot status={$presence[dm.dm_user_uuid] ?? dm.dm_status ?? 'offline'} />
@@ -152,18 +135,18 @@
   {#if $authUser}
     <div class="sidebar__footer">
       <div class="user-chip">
-        <label
+        <button
           class="user-avatar"
           style="background: {avatarColor($authUser.username)}"
-          title="Change profile photo"
+          title="View profile"
+          on:click={() => showProfile($activeChannelId)}
         >
-          <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" on:change={handleAvatarChange} disabled={avatarUploading} />
           {#if avatarUrl}
             <img src={avatarUrl} alt="Profile photo of {$authUser.username}" />
           {:else}
             {$authUser.username[0].toUpperCase()}
           {/if}
-        </label>
+        </button>
         <div class="user-info">
           <span class="user-name">{$authUser.username}</span>
           <span class="user-status">
@@ -183,7 +166,6 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2H4a1 1 0 00-1 1v10a1 1 0 001 1h2M11 11l3-3-3-3M14 8H6"/></svg>
       </button>
     </div>
-    {#if avatarError}<p class="avatar-error">{avatarError}</p>{/if}
   {/if}
 </aside>
 
@@ -191,13 +173,13 @@
 {#if showCreateChannel}
   <CreateChannelModal
     on:close={() => (showCreateChannel = false)}
-    on:created={(e) => { setActiveChannel(e.detail.uuid); showCreateChannel = false; }}
+    on:created={(e) => { showChannel(); setActiveChannel(e.detail.uuid); showCreateChannel = false; }}
   />
 {/if}
 {#if showUserSearch}
   <UserSearchModal
     on:close={() => (showUserSearch = false)}
-    on:created={(e) => { setActiveChannel(e.detail.uuid); showUserSearch = false; }}
+    on:created={(e) => { showChannel(); setActiveChannel(e.detail.uuid); showUserSearch = false; }}
   />
 {/if}
 
@@ -356,13 +338,11 @@
     overflow: hidden;
     cursor: pointer;
     position: relative;
+    border: none;
+    padding: 0;
+    transition: opacity 0.15s ease-out;
   }
-  .user-avatar input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-  }
+  .user-avatar:hover { opacity: 0.85; }
   .user-avatar img {
     width: 100%;
     height: 100%;
@@ -429,6 +409,4 @@
     height: 16px;
   }
   .theme-toggle:hover { color: var(--color-text); background: var(--color-border); }
-
-  .avatar-error { margin: -22px 16px 8px; color: #f87171; font-size: 11px; }
 </style>

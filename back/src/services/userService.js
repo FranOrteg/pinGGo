@@ -34,7 +34,7 @@ export async function getUserProfile(req, res, next) {
 
 export async function updateMyProfile(req, res, next) {
   try {
-    const { username, avatarUrl } = req.body;
+    const { username, avatarUrl, status } = req.body;
     const fields = [];
     const params = [];
 
@@ -45,6 +45,14 @@ export async function updateMyProfile(req, res, next) {
       }
       fields.push('avatar_url = ?');
       params.push(avatarUrl);
+    }
+    if (status) {
+      const allowed = ['online', 'away', 'dnd'];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      fields.push('status = ?');
+      params.push(status);
     }
 
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });

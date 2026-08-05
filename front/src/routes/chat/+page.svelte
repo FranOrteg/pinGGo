@@ -1,9 +1,13 @@
 <script>
   import { currentChannel } from '$lib/stores/channels.js';
+  import { activeView } from '$lib/stores/view.js';
   import ChannelView from '$lib/components/ChannelView.svelte';
+  import ProfileView from '$lib/components/ProfileView.svelte';
 </script>
 
-{#if $currentChannel}
+{#if $activeView === 'profile'}
+  <ProfileView />
+{:else if $currentChannel}
   <ChannelView channel={$currentChannel} />
 {:else}
   <div class="empty-state">
