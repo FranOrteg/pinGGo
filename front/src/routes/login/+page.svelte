@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { login, register, isAuthenticated, authReady } from '$lib/stores/auth.js';
+  import pinggoLogo from '$lib/assets/pinggoLogo.png';
 
   let mode = 'login';
   let email = '';
@@ -43,7 +44,6 @@
 <div class="auth-page">
   <div class="auth-card">
     <div class="auth-logo">
-      <span class="logo-mark">💬</span>
       <span class="logo-name">PinGGo</span>
     </div>
 
@@ -140,7 +140,6 @@
     gap: 10px;
     justify-content: center;
   }
-  .logo-mark { font-size: 28px; }
   .logo-name {
     font-size: 24px;
     font-weight: 700;

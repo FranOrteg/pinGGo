@@ -131,6 +131,7 @@
     <h1 class="profile__title">Perfil</h1>
   </header>
 
+  {#if user}
   <div class="profile__body">
     <div class="profile__avatar-section">
       <div class="profile__avatar-wrap">
@@ -209,6 +210,7 @@
       <span class="profile__value profile__value--muted">{user.email}</span>
     </div>
   </div>
+  {/if}
 </div>
 
 <style>

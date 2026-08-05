@@ -37,7 +37,7 @@ export async function refreshToken() {
     setAccessToken(data.accessToken);
 
     const me = await api.get('/auth/me');
-    authUser.set(me.user);
+    authUser.set({ ...me.user, status: 'online' });
 
     createSocketClient(data.accessToken);
     return data.accessToken;
@@ -50,7 +50,7 @@ export async function refreshToken() {
 }
 
 function _applySession({ user, accessToken: token }) {
-  authUser.set(user);
+  authUser.set({ ...user, status: 'online' });
   accessToken.set(token);
   authReady.set(true);
   setAccessToken(token);
