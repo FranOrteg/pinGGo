@@ -27,5 +27,7 @@ Thumbs.db
 # AI / editor local configuration
 .claude/
 .codex/
-.cursor/
 .impeccable/
+
+# Graphify
+graphify-out/   
