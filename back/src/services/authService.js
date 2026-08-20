@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import config from '../config/index.js';
 import { query, queryOne } from '../db/pool.js';
 
@@ -120,6 +120,63 @@ export async function me(req, res, next) {
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// UUID v5 namespace (must match frontend userAdapter.js)
+const SKYLAB_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+export async function exchangeToken(req, res, next) {
+  try {
+    const { skylabId, email, username, skylabToken } = req.body;
+
+    if (!skylabId || !email || !username || !skylabToken) {
+      return res.status(400).json({ 
+        error: 'skylabId, email, username and skylabToken are required' 
+      });
+    }
+
+    // Calculate deterministic UUID v5 from email (same as frontend)
+    const uuid = uuidv5(email, SKYLAB_NAMESPACE);
+
+    // Check if user already exists
+    let user = await queryOne(
+      'SELECT id, uuid, username, email, avatar_url FROM users WHERE uuid = ?',
+      [uuid]
+    );
+
+    // Create user if doesn't exist
+    if (!user) {
+      await query(
+        'INSERT INTO users (uuid, username, email, password_hash, skylab_id) VALUES (?, ?, ?, ?, ?)',
+        [uuid, username, email, '', skylabId]
+      );
+
+      user = await queryOne(
+        'SELECT id, uuid, username, email, avatar_url FROM users WHERE uuid = ?',
+        [uuid]
+      );
+    } else {
+      // Update username if changed in Skylab
+      if (user.username !== username) {
+        await query(
+          'UPDATE users SET username = ? WHERE uuid = ?',
+          [username, uuid]
+        );
+        user.username = username;
+      }
+    }
+
+    // Generate PinGGo tokens
+    const { accessToken, refreshToken } = signTokens({ 
+      sub: user.uuid, 
+      username: user.username 
+    });
+
+    setRefreshCookie(res, refreshToken);
+    res.json({ accessToken, user });
   } catch (err) {
     next(err);
   }

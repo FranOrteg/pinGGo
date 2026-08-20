@@ -10,13 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
   uuid          CHAR(36) UNIQUE NOT NULL,
   username      VARCHAR(50) UNIQUE NOT NULL,
   email         VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL DEFAULT '',
+  skylab_id     INT UNSIGNED,
   avatar_url    VARCHAR(500),
   status        ENUM('online','away','dnd','offline') DEFAULT 'offline',
   last_seen     DATETIME,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_uuid (uuid),
-  INDEX idx_email (email)
+  INDEX idx_email (email),
+  INDEX idx_skylab_id (skylab_id)
 );
 
 -- ── Channels (DMs, groups, public channels) ───────────────────────────────────
