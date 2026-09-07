@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAuthenticated, authReady } from '$lib/stores/auth.js';
-  import { loadChannels, bindChannelReconnect } from '$lib/stores/channels.js';
+  import { loadChannels, bindChannelReconnect, bindChannelListeners } from '$lib/stores/channels.js';
   import { bindSocketListeners } from '$lib/stores/messages.js';
   import { bindPresenceListeners } from '$lib/stores/presence.js';
   import { getSocket } from '$lib/socket/client.js';
@@ -34,8 +34,9 @@
       if (socket) {
         const c1 = bindSocketListeners(socket);
         const c2 = bindPresenceListeners(socket);
+        const c3 = bindChannelListeners(socket);
         bindChannelReconnect(socket);
-        cleanup = () => { c1?.(); c2?.(); };
+        cleanup = () => { c1?.(); c2?.(); c3?.(); };
       }
 
       ready = true;

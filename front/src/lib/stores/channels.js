@@ -52,3 +52,19 @@ export function bindChannelReconnect(socket) {
     if (id) socket.emit('channel:join', { channelId: id });
   });
 }
+
+/** Real-time creation events (public broadcasts + personal room for private/group/DM) */
+export function bindChannelListeners(socket) {
+  function onChannelCreated({ channel }) {
+    channels.update((list) => {
+      const exists = list.some((c) => c.uuid === channel.uuid);
+      return exists ? list : [...list, channel];
+    });
+  }
+
+  socket.on('channel:created', onChannelCreated);
+
+  return () => {
+    socket.off('channel:created', onChannelCreated);
+  };
+}

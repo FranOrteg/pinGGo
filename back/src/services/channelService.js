@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../db/pool.js';
+import { getIO } from '../socket/io.js';
 
 export async function getMyChannels(req, res, next) {
   try {
@@ -189,24 +190,47 @@ export async function createChannel(req, res, next) {
       );
     }
 
-    res.status(201).json({
-      channel: {
-        uuid: channel.uuid,
-        name: isDirect ? (memberUuids[0] ? (await queryOne(
-          `SELECT u.username FROM channel_members cm
+    let otherMember = null;
+    if (isDirect) {
+      otherMember = await queryOne(
+        `SELECT u.uuid, u.username, u.avatar_url FROM channel_members cm
+         JOIN users u ON u.id = cm.user_id
+         WHERE cm.channel_id = ? AND u.uuid != ?
+         LIMIT 1`,
+        [channel.id, req.user.sub]
+      );
+    }
+
+    const responseChannel = {
+      uuid: channel.uuid,
+      name: isDirect ? (otherMember?.username ?? null) : channelName,
+      description,
+      type: finalType,
+      is_private: isPrivateFinal ? 1 : 0,
+      dm_user_uuid: type === 'direct' ? (otherMember?.uuid ?? null) : null,
+      dm_avatar_url: type === 'direct' ? (otherMember?.avatar_url ?? null) : null,
+    };
+
+    const io = getIO();
+    if (io) {
+      if (finalType === 'channel') {
+        // Public channel: everyone is a member, broadcast to all connected clients.
+        io.emit('channel:created', { channel: responseChannel });
+      } else {
+        // Private/group/DM: notify only the personal rooms of its members (creator included).
+        const memberRows = await query(
+          `SELECT u.uuid FROM channel_members cm
            JOIN users u ON u.id = cm.user_id
-           WHERE cm.channel_id = ? AND u.uuid != ?`,
-          [channel.id, req.user.sub]
-        ))?.username ?? null : null) : channelName,
-        description,
-        type: finalType,
-        is_private: isPrivateFinal ? 1 : 0,
-        dm_user_uuid: type === 'direct' ? memberUuids[0] ?? null : null,
-        dm_avatar_url: type === 'direct' && memberUuids[0]
-          ? (await queryOne('SELECT avatar_url FROM users WHERE uuid = ?', [memberUuids[0]]))?.avatar_url ?? null
-          : null,
-      },
-    });
+           WHERE cm.channel_id = ?`,
+          [channel.id]
+        );
+        for (const { uuid: memberUuid } of memberRows) {
+          io.to(`user:${memberUuid}`).emit('channel:created', { channel: responseChannel });
+        }
+      }
+    }
+
+    res.status(201).json({ channel: responseChannel });
   } catch (err) {
     next(err);
   }
