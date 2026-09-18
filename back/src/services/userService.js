@@ -6,7 +6,7 @@ export async function searchUsers(req, res, next) {
     if (!q || q.length < 2) return res.status(400).json({ error: 'Query must be at least 2 chars' });
 
     const users = await query(
-      `SELECT uuid, username, avatar_url, status
+      `SELECT uuid, username, email, avatar_url, status
        FROM users
        WHERE username LIKE ? AND uuid != ?
        LIMIT 20`,

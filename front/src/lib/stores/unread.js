@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { api } from '../api/index.js';
 
 export const unread = writable({});
 
@@ -16,4 +17,5 @@ export function incrementUnread(channelId) {
 
 export function clearUnread(channelId) {
   unread.update((s) => ({ ...s, [channelId]: 0 }));
+  api.post(`/channels/${channelId}/read`).catch(() => {});
 }
