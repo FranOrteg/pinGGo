@@ -130,7 +130,7 @@ const SKYLAB_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
 export async function exchangeToken(req, res, next) {
   try {
-    const { skylabId, email, username, skylabToken } = req.body;
+    const { skylabId, email, username, skylabToken, avatarUrl } = req.body;
 
     if (!skylabId || !email || !username || !skylabToken) {
       return res.status(400).json({ 
@@ -150,8 +150,8 @@ export async function exchangeToken(req, res, next) {
     // Create user if doesn't exist
     if (!user) {
       await query(
-        'INSERT INTO users (uuid, username, email, password_hash, skylab_id) VALUES (?, ?, ?, ?, ?)',
-        [uuid, username, email, '', skylabId]
+        'INSERT INTO users (uuid, username, email, password_hash, skylab_id, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuid, username, email, '', skylabId, avatarUrl || null]
       );
 
       user = await queryOne(
@@ -166,6 +166,15 @@ export async function exchangeToken(req, res, next) {
           [username, uuid]
         );
         user.username = username;
+      }
+
+      // Backfill the Skylab avatar only if the user never set one in PinGGo
+      if (!user.avatar_url && avatarUrl) {
+        await query(
+          'UPDATE users SET avatar_url = ? WHERE uuid = ?',
+          [avatarUrl, uuid]
+        );
+        user.avatar_url = avatarUrl;
       }
     }
 
