@@ -128,6 +128,35 @@ export async function me(req, res, next) {
 // UUID v5 namespace (must match frontend userAdapter.js)
 const SKYLAB_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
+/**
+ * Verifies the Skylab JWT signature and, when the token carries identity
+ * claims, checks they match the identity sent in the body.
+ */
+function verifySkylabToken(token, { skylabId, email }) {
+  if (!config.skylab.jwtSecret) {
+    // Only reachable outside production (startup fails without the secret there)
+    console.warn('[auth] SKYLAB_JWT_SECRET not set — skipping Skylab token verification');
+    return true;
+  }
+
+  let payload;
+  try {
+    payload = jwt.verify(token, config.skylab.jwtSecret, {
+      algorithms: config.skylab.jwtAlgorithms,
+    });
+  } catch {
+    return false;
+  }
+
+  const tokenEmail = payload.email;
+  if (tokenEmail && String(tokenEmail).toLowerCase() !== String(email).toLowerCase()) return false;
+
+  const tokenId = payload.id ?? payload.userId ?? payload.skylabId ?? payload.sub;
+  if (tokenId !== undefined && String(tokenId) !== String(skylabId)) return false;
+
+  return true;
+}
+
 export async function exchangeToken(req, res, next) {
   try {
     const { skylabId, email, username, skylabToken, avatarUrl } = req.body;
@@ -136,6 +165,10 @@ export async function exchangeToken(req, res, next) {
       return res.status(400).json({ 
         error: 'skylabId, email, username and skylabToken are required' 
       });
+    }
+
+    if (!verifySkylabToken(skylabToken, { skylabId, email })) {
+      return res.status(401).json({ error: 'Invalid Skylab token' });
     }
 
     // Calculate deterministic UUID v5 from email (same as frontend)

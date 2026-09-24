@@ -30,6 +30,12 @@ export default {
     refreshExpiresIn: '7d',
   },
 
+  skylab: {
+    // Secret (HS256) or PEM public key (RS256) used by Skylab to sign its JWTs
+    jwtSecret: (process.env.SKYLAB_JWT_SECRET || '').replace(/\\n/g, '\n'),
+    jwtAlgorithms: (process.env.SKYLAB_JWT_ALGORITHMS || 'HS256').split(',').map((s) => s.trim()),
+  },
+
   s3: {
     bucket: process.env.S3_BUCKET || '',
     region: process.env.AWS_REGION || 'eu-west-1',

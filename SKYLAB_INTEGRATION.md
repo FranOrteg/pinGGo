@@ -146,12 +146,9 @@ curl -X GET http://localhost:4000/api/auth/me \
 - Solo autenticación vía token exchange
 
 ### Token de Skylab
-- Actualmente el endpoint **no valida** el `skylabToken`
-- ⚠️ **TODO:** Implementar validación del token de Skylab si se requiere seguridad adicional
-- Opciones:
-  - Validar firma JWT del token de Skylab
-  - Llamar a endpoint de Skylab para verificar token
-  - Validar claim específico en el token
+- El endpoint **verifica la firma** del `skylabToken` con `SKYLAB_JWT_SECRET` (algoritmos en `SKYLAB_JWT_ALGORITHMS`, por defecto `HS256`). Si no es válido responde `401`.
+- Si el token lleva `email` y/o un id (`id`, `userId`, `skylabId` o `sub`), tienen que coincidir con los del body.
+- En `NODE_ENV=production` el servidor no arranca sin `SKYLAB_JWT_SECRET`. En desarrollo, si falta, se omite la verificación y se muestra un aviso.
 
 ## Compatibilidad
 
@@ -215,6 +212,17 @@ curl -X GET http://localhost:4000/api/auth/me \
 - Verificar que el namespace es `6ba7b810-9dad-11d1-80b4-00c04fd430c8` en ambos lados
 - Verificar que se usa el mismo email
 - Usar `uuidv5(email, namespace)` en ambos lados
+
+## Despliegue (producción)
+
+El back corre en la instancia EC2 de Skylab, junto a su MariaDB, con **pm2** y detrás de **Nginx** (HTTPS con Let's Encrypt), en un subdominio del mismo dominio que el front.
+
+- Dependencias del sistema: Node 20, Redis (solo en `127.0.0.1`), `poppler-utils` y LibreOffice (para las miniaturas).
+- BD: `CREATE DATABASE pinggo` + el usuario `pinggo@localhost` y, después, `mysql -u root -p < back/src/db/schema.sql`.
+- `back/.env` con `NODE_ENV=production`, `CORS_ORIGIN=https://<front>`, `DB_HOST=127.0.0.1`, `REDIS_HOST=127.0.0.1`, los secretos JWT y `SKYLAB_JWT_SECRET`.
+- Arranque: `cd back && npm ci --omit=dev && pm2 start ecosystem.config.cjs && pm2 save`. **Una sola instancia en modo fork**: el modo cluster de pm2 rompe Socket.IO, que necesita sticky sessions.
+- Nginx: `proxy_pass http://127.0.0.1:4000` con las cabeceras `Upgrade`/`Connection "upgrade"` para el WebSocket. El back tiene `trust proxy` activado para que el rate limit vaya por IP de cliente.
+- Redespliegue: `git pull && cd back && npm ci --omit=dev && pm2 reload pinggo-back`.
 
 ## Contacto
 
