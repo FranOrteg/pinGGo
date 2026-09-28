@@ -12,6 +12,8 @@ const labit = http.createServer((req, res) => {
   req.on('data', (c) => (data += c));
   req.on('end', () => {
     if (labitMode === 'down') { res.writeHead(500); return res.end('boom'); }
+    if (labitMode === '404') { res.writeHead(404); return res.end('Not Found'); }
+    if (labitMode === '403') { res.writeHead(403); return res.end('{"error":"Forbidden"}'); }
     if (labitMode === 'html') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<b>Error</b>'); }
     const body = JSON.parse(data || '{}');
     if (labitMode === 'extra' && body.action !== 'whoami') { res.writeHead(400); return res.end(); }
@@ -122,6 +124,15 @@ test('exchange: Labit down → 502 with message', async () => {
   labitMode = 'normal';
   assert.equal(r.status, 502);
   assert.match(r.body.message, /unavailable/);
+});
+
+test('exchange: WhoAmI missing (404) or IP blocked (403) → 502, not "invalid token"', async () => {
+  for (const mode of ['404', '403']) {
+    labitMode = mode;
+    const r = await post('/api/auth/exchange-token', fran);
+    assert.equal(r.status, 502, mode);
+  }
+  labitMode = 'normal';
 });
 
 test('exchange: missing fields / non-numeric skylabId → 400 with message', async () => {

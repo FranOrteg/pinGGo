@@ -160,6 +160,7 @@ export async function exchangeToken(req, res, next) {
     if (isLabitValidationConfigured()) {
       const contactId = await resolveLabitContactId(skylabToken); // throws 502 if Labit is down
       if (!contactId || contactId !== skylabId) {
+        console.warn(`[auth] exchange rejected: Labit contact ${contactId ?? 'none'} ≠ skylabId ${skylabId} (${email})`);
         return res.status(401).json({ error: 'Invalid Skylab token' });
       }
     } else {
