@@ -1,18 +1,14 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import config from '../config/index.js';
 import { query, queryOne } from '../db/pool.js';
-
-function signTokens(payload) {
-  const accessToken = jwt.sign(payload, config.jwt.accessSecret, {
-    expiresIn: config.jwt.accessExpiresIn,
-  });
-  const refreshToken = jwt.sign(payload, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  });
-  return { accessToken, refreshToken };
-}
+import {
+  buildPayload,
+  signTokens,
+  verifyAccessTokenWithGrace,
+  verifyRefreshToken,
+} from './tokenService.js';
+import { isLabitValidationConfigured, resolveLabitContactId } from './labitService.js';
 
 function setRefreshCookie(res, token) {
   res.cookie('refresh_token', token, {
@@ -49,7 +45,7 @@ export async function register(req, res, next) {
       'SELECT id, uuid, username, email FROM users WHERE uuid = ?',
       [uuid]
     );
-    const { accessToken, refreshToken } = signTokens({ sub: user.uuid, username: user.username });
+    const { accessToken, refreshToken } = signTokens(buildPayload(user));
 
     setRefreshCookie(res, refreshToken);
     res.status(201).json({ user, accessToken });
@@ -74,7 +70,7 @@ export async function login(req, res, next) {
     const valid = await bcrypt.compare(password, user?.password_hash ?? dummyHash);
     if (!user || !valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const { accessToken, refreshToken } = signTokens({ sub: user.uuid, username: user.username });
+    const { accessToken, refreshToken } = signTokens(buildPayload(user));
     setRefreshCookie(res, refreshToken);
 
     const { password_hash, ...safeUser } = user;
@@ -84,22 +80,32 @@ export async function login(req, res, next) {
   }
 }
 
+/**
+ * POST /api/auth/refresh
+ * Two ways to prove the session, in this order:
+ *  1. Authorization: Bearer <access token> — the Skylab front sends its current token,
+ *     usually already expired. Signature is checked, expiry is tolerated within
+ *     JWT_REFRESH_GRACE_SECONDS, and the session cannot exceed SESSION_MAX_AGE_SECONDS.
+ *  2. refresh_token httpOnly cookie — standalone PinGGo front.
+ */
 export async function refresh(req, res, next) {
   try {
-    const token = req.cookies?.refresh_token;
-    if (!token) return res.status(401).json({ error: 'No refresh token' });
+    const header = req.headers.authorization;
+    let payload = null;
 
-    let payload;
-    try {
-      payload = jwt.verify(token, config.jwt.refreshSecret);
-    } catch {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    if (header?.startsWith('Bearer ')) {
+      payload = verifyAccessTokenWithGrace(header.slice(7));
+    } else if (req.cookies?.refresh_token) {
+      payload = verifyRefreshToken(req.cookies.refresh_token);
     }
 
-    const user = await queryOne('SELECT uuid, username FROM users WHERE uuid = ?', [payload.sub]);
+    if (!payload?.sub) return res.status(401).json({ error: 'Session expired' });
+
+    const user = await queryOne('SELECT uuid, username, email FROM users WHERE uuid = ?', [payload.sub]);
     if (!user) return res.status(401).json({ error: 'User not found' });
 
-    const { accessToken, refreshToken } = signTokens({ sub: user.uuid, username: user.username });
+    // Keep the original session auth time so refreshes cannot extend a session forever
+    const { accessToken, refreshToken } = signTokens(buildPayload(user, payload.sat));
     setRefreshCookie(res, refreshToken);
     res.json({ accessToken });
   } catch (err) {
@@ -125,98 +131,75 @@ export async function me(req, res, next) {
   }
 }
 
-// UUID v5 namespace (must match frontend userAdapter.js)
+// UUID v5 namespace (must match the Skylab front: uuidv5(email, NAMESPACE))
 const SKYLAB_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
 /**
- * Verifies the Skylab JWT signature and, when the token carries identity
- * claims, checks they match the identity sent in the body.
+ * POST /api/auth/exchange-token
+ * Body: { skylabId, email, username, avatarUrl?, skylabToken }
+ * skylabToken is the opaque Labit session token; it is validated server-to-server
+ * against Labit and must resolve to the same contact id as skylabId.
+ * Response: { accessToken, user }
  */
-function verifySkylabToken(token, { skylabId, email }) {
-  if (!config.skylab.jwtSecret) {
-    // Only reachable outside production (startup fails without the secret there)
-    console.warn('[auth] SKYLAB_JWT_SECRET not set — skipping Skylab token verification');
-    return true;
-  }
-
-  let payload;
-  try {
-    payload = jwt.verify(token, config.skylab.jwtSecret, {
-      algorithms: config.skylab.jwtAlgorithms,
-    });
-  } catch {
-    return false;
-  }
-
-  const tokenEmail = payload.email;
-  if (tokenEmail && String(tokenEmail).toLowerCase() !== String(email).toLowerCase()) return false;
-
-  const tokenId = payload.id ?? payload.userId ?? payload.skylabId ?? payload.sub;
-  if (tokenId !== undefined && String(tokenId) !== String(skylabId)) return false;
-
-  return true;
-}
-
 export async function exchangeToken(req, res, next) {
   try {
-    const { skylabId, email, username, skylabToken, avatarUrl } = req.body;
+    const { email, username, avatarUrl } = req.body ?? {};
+    const skylabId = req.body?.skylabId != null ? String(req.body.skylabId).trim() : '';
+    let skylabToken = typeof req.body?.skylabToken === 'string' ? req.body.skylabToken.trim() : '';
+    if (skylabToken.toLowerCase().startsWith('bearer ')) skylabToken = skylabToken.slice(7).trim();
 
     if (!skylabId || !email || !username || !skylabToken) {
-      return res.status(400).json({ 
-        error: 'skylabId, email, username and skylabToken are required' 
+      return res.status(400).json({
+        error: 'skylabId, email, username and skylabToken are required',
       });
     }
-
-    if (!verifySkylabToken(skylabToken, { skylabId, email })) {
-      return res.status(401).json({ error: 'Invalid Skylab token' });
+    if (!/^\d+$/.test(skylabId)) {
+      return res.status(400).json({ error: 'skylabId must be a numeric Labit contact id' });
     }
 
-    // Calculate deterministic UUID v5 from email (same as frontend)
-    const uuid = uuidv5(email, SKYLAB_NAMESPACE);
+    if (isLabitValidationConfigured()) {
+      const contactId = await resolveLabitContactId(skylabToken); // throws 502 if Labit is down
+      if (!contactId || contactId !== skylabId) {
+        return res.status(401).json({ error: 'Invalid Skylab token' });
+      }
+    } else {
+      // Only reachable outside production (startup fails without LABIT_VALIDATE_URL there)
+      console.warn('[auth] LABIT_VALIDATE_URL not set — skipping Skylab token validation');
+    }
 
-    // Check if user already exists
+    // Deterministic UUID v5 from the email exactly as received (the front does the same)
+    const uuid = uuidv5(email, SKYLAB_NAMESPACE);
+    const cleanUsername = String(username).trim().slice(0, 100);
+
     let user = await queryOne(
+      'SELECT id, uuid, username, email, avatar_url, skylab_id FROM users WHERE uuid = ?',
+      [uuid]
+    );
+
+    if (!user) {
+      await query(
+        'INSERT INTO users (uuid, username, email, password_hash, skylab_id, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
+        [uuid, cleanUsername, email, '', skylabId, avatarUrl || null]
+      );
+    } else {
+      // Never overwrite username/avatar the user may have edited inside PinGGo:
+      // only fill in what is missing.
+      const updates = [];
+      const params = [];
+      if (!user.avatar_url && avatarUrl) { updates.push('avatar_url = ?'); params.push(avatarUrl); }
+      if (user.skylab_id == null) { updates.push('skylab_id = ?'); params.push(skylabId); }
+      if (updates.length) {
+        params.push(uuid);
+        await query(`UPDATE users SET ${updates.join(', ')} WHERE uuid = ?`, params);
+      }
+    }
+
+    user = await queryOne(
       'SELECT id, uuid, username, email, avatar_url FROM users WHERE uuid = ?',
       [uuid]
     );
 
-    // Create user if doesn't exist
-    if (!user) {
-      await query(
-        'INSERT INTO users (uuid, username, email, password_hash, skylab_id, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuid, username, email, '', skylabId, avatarUrl || null]
-      );
-
-      user = await queryOne(
-        'SELECT id, uuid, username, email, avatar_url FROM users WHERE uuid = ?',
-        [uuid]
-      );
-    } else {
-      // Update username if changed in Skylab
-      if (user.username !== username) {
-        await query(
-          'UPDATE users SET username = ? WHERE uuid = ?',
-          [username, uuid]
-        );
-        user.username = username;
-      }
-
-      // Backfill the Skylab avatar only if the user never set one in PinGGo
-      if (!user.avatar_url && avatarUrl) {
-        await query(
-          'UPDATE users SET avatar_url = ? WHERE uuid = ?',
-          [avatarUrl, uuid]
-        );
-        user.avatar_url = avatarUrl;
-      }
-    }
-
-    // Generate PinGGo tokens
-    const { accessToken, refreshToken } = signTokens({ 
-      sub: user.uuid, 
-      username: user.username 
-    });
-
+    const { accessToken, refreshToken } = signTokens(buildPayload(user));
     setRefreshCookie(res, refreshToken);
     res.json({ accessToken, user });
   } catch (err) {

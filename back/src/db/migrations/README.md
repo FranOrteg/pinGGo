@@ -32,3 +32,6 @@ docker-compose exec db mysql -u root -p pinggo < /tmp/001_add_skylab_integration
 - `001_add_skylab_integration.sql` (2026-08-20) - Adds Skylab integration support
   - Adds `skylab_id` column to `users` table
   - Allows empty `password_hash` for Skylab users
+- `002_username_not_unique.sql` (2026-09-28) - `username` is a display name
+  - Drops the UNIQUE index on `users.username` (Labit contacts can share a name)
+  - Widens `username` to VARCHAR(100) and adds a non-unique index

@@ -8,7 +8,7 @@ USE pinggo;
 CREATE TABLE IF NOT EXISTS users (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   uuid          CHAR(36) UNIQUE NOT NULL,
-  username      VARCHAR(50) UNIQUE NOT NULL,
+  username      VARCHAR(100) NOT NULL,        -- display name; not unique (Labit contacts can share names)
   email         VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL DEFAULT '',
   skylab_id     INT UNSIGNED,
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_seen     DATETIME,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_uuid (uuid),
+  INDEX idx_username (username),
   INDEX idx_email (email),
   INDEX idx_skylab_id (skylab_id)
 );

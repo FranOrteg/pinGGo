@@ -145,10 +145,20 @@ curl -X GET http://localhost:4000/api/auth/me \
 - No pueden hacer login directo en PinGGo (endpoints `/login` bloqueados para ellos)
 - Solo autenticación vía token exchange
 
-### Token de Skylab
-- El endpoint **verifica la firma** del `skylabToken` con `SKYLAB_JWT_SECRET` (algoritmos en `SKYLAB_JWT_ALGORITHMS`, por defecto `HS256`). Si no es válido responde `401`.
-- Si el token lleva `email` y/o un id (`id`, `userId`, `skylabId` o `sub`), tienen que coincidir con los del body.
-- En `NODE_ENV=production` el servidor no arranca sin `SKYLAB_JWT_SECRET`. En desarrollo, si falta, se omite la verificación y se muestra un aviso.
+### Token de Skylab (validación server-to-server contra Labit)
+- `skylabToken` es el **token de sesión opaco de Labit** (no es JWT) que Skylab obtiene en `POST /rest/Login.php`.
+- En el exchange, PinGGo hace `POST LABIT_VALIDATE_URL` con `{"token": skylabToken, ...LABIT_VALIDATE_EXTRA_BODY}` y lee el contact id en `LABIT_CONTACT_ID_PATH`. Debe coincidir con `skylabId`; si no → `401 {message:"Invalid Skylab token"}`. Si Labit no responde o da 5xx → `502`.
+- Se acepta el token con o sin prefijo `Bearer `. `skylabId` debe ser numérico (`contact_id`), como número o string.
+- En `NODE_ENV=production` el servidor no arranca sin `LABIT_VALIDATE_URL`. En desarrollo, si falta, se omite la validación con un aviso.
+- Suplantación ("ver como usuario"): el token es el del usuario suplantado, así que el exchange crea/usa su usuario.
+
+### Sesión PinGGo
+- JWT con `{ sub, uuid, email, username, sat }` + `exp` (8 h por defecto, `JWT_ACCESS_EXPIRES_IN`). `sat` = momento del exchange.
+- `POST /api/auth/refresh` acepta `Authorization: Bearer <token caducado>` si caducó hace menos de `JWT_REFRESH_GRACE_SECONDS` (7 días) y la sesión tiene menos de `SESSION_MAX_AGE_SECONDS` (30 días). Devuelve `{ accessToken }`. También acepta la cookie `refresh_token` (front propio de PinGGo).
+- Socket.IO acepta el token del handshake con la misma ventana de gracia (el front de Skylab no lo renueva al reconectar).
+- El exchange **no sobrescribe** `username` ni `avatar_url` si ya existen (pueden haberse editado en PinGGo); solo rellena lo que falta.
+- Todas las respuestas de error llevan `message` (lo que lee Skylab) además de `error`.
+- `username` ya no es único (migración `002_username_not_unique.sql`).
 
 ## Compatibilidad
 

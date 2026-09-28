@@ -1,12 +1,13 @@
 {
   "name": "pinggo-back",
   "version": "1.0.0",
-  "description": "PinGGo messaging platform — backend",
+  "description": "PinGGo messaging platform \u2014 backend",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "node --experimental-test-module-mocks --test \"test/**/*.test.mjs\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1060.0",
