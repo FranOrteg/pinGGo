@@ -41,7 +41,7 @@ function getS3Client() {
   });
 }
 
-function getThumbnailKey(originalKey) {
+export function getThumbnailKey(originalKey) {
   const ext = path.extname(originalKey);
   const base = originalKey.slice(0, -ext.length || undefined);
   return `thumbnails/${base}_thumb.png`;

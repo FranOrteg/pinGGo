@@ -1,6 +1,38 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../db/pool.js';
 import { getIO } from '../socket/io.js';
+import { deleteS3Objects } from './uploadService.js';
+import { getThumbnailKey } from './thumbnailService.js';
+
+// Only these channel types have a curated member list (public channels include everyone,
+// DMs are fixed to their two participants).
+const MANAGED_TYPES = new Set(['private', 'group']);
+
+/** Same shape `channel:created` already carries, so clients reuse their handler. */
+async function getChannelSummary(channelId) {
+  const channel = await queryOne(
+    'SELECT uuid, name, description, type, is_private FROM channels WHERE id = ?',
+    [channelId]
+  );
+  return channel && { ...channel, dm_user_uuid: null, dm_avatar_url: null };
+}
+
+/** Membership row of the requester for a channel, or null. */
+function getRequesterMembership(channelUuid, userUuid) {
+  return queryOne(
+    `SELECT c.id AS channelId, c.type, u.id AS userId, cm.role
+     FROM channels c
+     JOIN channel_members cm ON cm.channel_id = c.id
+     JOIN users u ON u.id = cm.user_id
+     WHERE c.uuid = ? AND u.uuid = ?`,
+    [channelUuid, userUuid]
+  );
+}
+
+/** Drops every socket of a user from a channel room so they stop receiving its events. */
+function kickFromChannelRoom(io, userUuid, channelUuid) {
+  io.in(`user:${userUuid}`).socketsLeave(`channel:${channelUuid}`);
+}
 
 export async function getMyChannels(req, res, next) {
   try {
@@ -242,23 +274,131 @@ export async function addMember(req, res, next) {
     const { userUuid } = req.body;
     if (!userUuid) return res.status(400).json({ error: 'userUuid is required' });
 
-    const channel = await queryOne(
-      `SELECT c.id FROM channels c
-       JOIN channel_members cm ON cm.channel_id = c.id
-       JOIN users u ON u.id = cm.user_id
-       WHERE c.uuid = ? AND u.uuid = ? AND cm.role IN ('owner','admin')`,
-      [channelId, req.user.sub]
-    );
-    if (!channel) return res.status(403).json({ error: 'Forbidden' });
+    const requester = await getRequesterMembership(channelId, req.user.sub);
+    if (!requester || !['owner', 'admin'].includes(requester.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!MANAGED_TYPES.has(requester.type)) {
+      return res.status(400).json({ error: 'Members can only be added to private channels or groups' });
+    }
 
-    const newMember = await queryOne('SELECT id FROM users WHERE uuid = ?', [userUuid]);
-    if (!newMember) return res.status(404).json({ error: 'User not found' });
+    const member = await queryOne(
+      'SELECT id, uuid, username, avatar_url, status FROM users WHERE uuid = ?',
+      [userUuid]
+    );
+    if (!member) return res.status(404).json({ error: 'User not found' });
+
+    const result = await query(
+      'INSERT IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)',
+      [requester.channelId, member.id]
+    );
+    const { id: _id, ...publicMember } = member;
+    const memberDto = { ...publicMember, role: 'member' };
+
+    // Already a member: nothing changed, so don't re-notify anyone
+    if (result.affectedRows === 0) return res.json({ member: memberDto });
+
+    const io = getIO();
+    if (io) {
+      const channel = await getChannelSummary(requester.channelId);
+      io.to(`user:${member.uuid}`).emit('channel:created', { channel });
+      io.to(`channel:${channelId}`).emit('channel:member_added', { channelId, member: memberDto });
+    }
+
+    res.status(201).json({ member: memberDto });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removeMember(req, res, next) {
+  try {
+    const { channelId, userUuid } = req.params;
+    if (userUuid === req.user.sub) {
+      return res.status(400).json({ error: 'Use DELETE /members/me to leave a channel' });
+    }
+
+    const requester = await getRequesterMembership(channelId, req.user.sub);
+    if (!requester || !['owner', 'admin'].includes(requester.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!MANAGED_TYPES.has(requester.type)) {
+      return res.status(400).json({ error: 'Members can only be removed from private channels or groups' });
+    }
+
+    const target = await getRequesterMembership(channelId, userUuid);
+    if (!target) return res.status(404).json({ error: 'Member not found' });
+    if (target.role === 'owner') {
+      return res.status(400).json({ error: 'The channel owner cannot be removed' });
+    }
+    if (target.role === 'admin' && requester.role !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner can remove an admin' });
+    }
 
     await query(
-      'INSERT IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)',
-      [channel.id, newMember.id]
+      'DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?',
+      [requester.channelId, target.userId]
     );
+
+    const io = getIO();
+    if (io) {
+      kickFromChannelRoom(io, userUuid, channelId);
+      io.to(`user:${userUuid}`).emit('channel:removed', { channelId });
+      io.to(`channel:${channelId}`).emit('channel:member_removed', { channelId, userUuid });
+    }
+
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteChannel(req, res, next) {
+  try {
+    const { channelId } = req.params;
+
+    const requester = await getRequesterMembership(channelId, req.user.sub);
+    if (!requester || requester.role !== 'owner') {
+      return res.status(403).json({ error: 'Only the channel owner can delete it' });
+    }
+    if (requester.type === 'direct') {
+      return res.status(400).json({ error: 'Direct messages cannot be deleted' });
+    }
+
+    // Collect what we need before the cascade removes it
+    const memberRows = await query(
+      `SELECT u.uuid FROM channel_members cm
+       JOIN users u ON u.id = cm.user_id
+       WHERE cm.channel_id = ?`,
+      [requester.channelId]
+    );
+    const fileRows = await query(
+      'SELECT file_key FROM messages WHERE channel_id = ? AND file_key IS NOT NULL',
+      [requester.channelId]
+    );
+
+    // ON DELETE CASCADE removes members, messages, reactions and attachments
+    await query('DELETE FROM channels WHERE id = ?', [requester.channelId]);
+
+    const io = getIO();
+    if (io) {
+      if (requester.type === 'channel') {
+        io.emit('channel:deleted', { channelId });
+      } else {
+        for (const { uuid } of memberRows) {
+          io.to(`user:${uuid}`).emit('channel:deleted', { channelId });
+        }
+      }
+      io.in(`channel:${channelId}`).socketsLeave(`channel:${channelId}`);
+    }
+
+    res.json({ ok: true });
+
+    // Best-effort S3 cleanup (attachments + generated thumbnails), off the request path
+    const keys = fileRows.flatMap(({ file_key: key }) => [key, getThumbnailKey(key)]);
+    deleteS3Objects(keys).catch((err) =>
+      console.error(`[channels] S3 cleanup failed for channel ${channelId}:`, err)
+    );
   } catch (err) {
     next(err);
   }
@@ -284,14 +424,31 @@ export async function markChannelRead(req, res, next) {
 export async function leaveChannel(req, res, next) {
   try {
     const { channelId } = req.params;
-    const user = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
-    const channel = await queryOne('SELECT id FROM channels WHERE uuid = ?', [channelId]);
-    if (!user || !channel) return res.status(404).json({ error: 'Not found' });
+    const membership = await getRequesterMembership(channelId, req.user.sub);
+    if (!membership) return res.status(404).json({ error: 'Not found' });
+
+    // Public channels are backfilled for everyone, so leaving would not stick
+    if (membership.type === 'channel') {
+      return res.status(400).json({ error: 'Public channels include everyone' });
+    }
+    if (membership.role === 'owner') {
+      return res.status(400).json({ error: 'Owner must delete the channel' });
+    }
 
     await query(
       'DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?',
-      [channel.id, user.id]
+      [membership.channelId, membership.userId]
     );
+
+    const io = getIO();
+    if (io) {
+      kickFromChannelRoom(io, req.user.sub, channelId);
+      io.to(`channel:${channelId}`).emit('channel:member_removed', {
+        channelId,
+        userUuid: req.user.sub,
+      });
+    }
+
     res.json({ ok: true });
   } catch (err) {
     next(err);

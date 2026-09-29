@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -63,6 +63,21 @@ function getS3Client() {
       ? { accessKeyId: config.s3.accessKeyId, secretAccessKey: config.s3.secretAccessKey }
       : undefined, // falls back to IAM role / env vars when deployed on EC2/ECS
   });
+}
+
+/** Deletes the given keys from the bucket in batches of 1000 (S3 DeleteObjects limit). */
+export async function deleteS3Objects(keys) {
+  if (!config.s3.bucket || keys.length === 0) return;
+  const s3 = getS3Client();
+  for (let i = 0; i < keys.length; i += 1000) {
+    const batch = keys.slice(i, i + 1000);
+    await s3.send(
+      new DeleteObjectsCommand({
+        Bucket: config.s3.bucket,
+        Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+      })
+    );
+  }
 }
 
 export async function createPresignedUpload(req, res) {

@@ -116,9 +116,11 @@ Todos los paths siguientes incluyen el prefijo `/api`. `auth` indica si se exige
 | `GET /api/channels` | Listar canales visibles | Sí | — | `200 {channels}` |
 | `POST /api/channels` | Crear canal/direct/group | Sí | Body de canal | `201 {channel}` o `200 {channel}` si DM direct existente |
 | `GET /api/channels/:channelId` | Canal y sus miembros | Sí | `channelId` | `200 {channel}` |
+| `DELETE /api/channels/:channelId` | Eliminar canal (solo owner) | Sí | `channelId` | `200 {ok:true}` |
 | `POST /api/channels/:channelId/read` | Actualizar `last_read_at` | Sí | `channelId` | `200 {ok:true}` |
 | `DELETE /api/channels/:channelId/members/me` | Salir del canal | Sí | `channelId` | `200 {ok:true}` |
-| `POST /api/channels/:channelId/members` | Añadir miembro | Sí | `channelId` + body | `200 {ok:true}` |
+| `POST /api/channels/:channelId/members` | Añadir miembro (private/group) | Sí | `channelId` + body | `201 {member}` o `200 {member}` si ya era miembro |
+| `DELETE /api/channels/:channelId/members/:userUuid` | Quitar a otro miembro (private/group) | Sí | `channelId,userUuid` | `200 {ok:true}` |
 | `GET /api/channels/:channelId/messages` | Listar mensajes | Sí | `channelId` + `limit,before` | `200 {messages,hasMore}` |
 | `PATCH /api/messages/:messageId` | Editar propio mensaje | Sí | `messageId` + body | `200 {message}` |
 | `DELETE /api/messages/:messageId` | Soft-delete de propio mensaje | Sí | `messageId` | `200 {ok:true}` |
@@ -320,14 +322,32 @@ Statuses adicionales: `400 name is required`; `404 User not found` si no existe 
 
 ### `POST /api/channels/:channelId/members`
 
-Body obligatorio `{userUuid}`. Exige que el usuario actual sea `owner` o `admin` del canal.
+Body obligatorio `{userUuid}`. Exige que el usuario actual sea `owner` o `admin` del canal, y que el canal sea `private` o `group`.
 
-- `200 {ok:true}`; insert idempotente (`INSERT IGNORE`).
+- `201 {member:{uuid,username,avatar_url,status,role:"member"}}` si se añade. Emite `channel:created {channel}` a `user:<userUuid>` y `channel:member_added {channelId,member}` al room `channel:<channelId>`.
+- `200 {member}` si ya era miembro (idempotente, sin eventos).
 - `400 {error:"userUuid is required"}`.
+- `400` si el canal es público (`channel`) o `direct`.
 - `403 {error:"Forbidden"}` si no es manager o canal inaccesible.
 - `404 {error:"User not found"}` para el nuevo usuario.
 
-No valida que el canal sea privado, ni devuelve el miembro. No existe DELETE de un miembro ajeno.
+### `DELETE /api/channels/:channelId/members/:userUuid`
+
+Sin body. Quita a otro miembro. Solo en canales `private`/`group`.
+
+- Quien lo pide debe ser `owner` o `admin`. El `owner` no se puede quitar. Solo el `owner` puede quitar a un `admin`.
+- `200 {ok:true}`. Saca los sockets del usuario del room `channel:<channelId>`, emite `channel:removed {channelId}` a `user:<userUuid>` y `channel:member_removed {channelId,userUuid}` al room.
+- `400` si `userUuid` es el propio usuario (usar `/members/me`), si el canal es público/direct o si el objetivo es el owner.
+- `403` sin permisos (o admin quitando a otro admin).
+- `404 {error:"Member not found"}` si el usuario no es miembro.
+
+### `DELETE /api/channels/:channelId`
+
+Sin body. Solo el `owner`. No aplica a `direct`.
+
+- `200 {ok:true}`. Borra el canal; `ON DELETE CASCADE` elimina members, mensajes, reacciones y attachments. Emite `channel:deleted {channelId}` (a todos si era público; si no, a `user:<uuid>` de cada miembro) y vacía el room.
+- Tras responder, borra en segundo plano de S3 los `file_key` de los mensajes y sus thumbnails (`thumbnails/<base>_thumb.png`). Los fallos solo se registran en el log.
+- `400` si es `direct`. `403` si no es el owner o no es miembro.
 
 ### `POST /api/channels/:channelId/read`
 
@@ -335,12 +355,12 @@ Sin body. Actualiza `channel_members.last_read_at = NOW()` para la combinación 
 
 ### `DELETE /api/channels/:channelId/members/me`
 
-Sin body. Borra la membership del usuario actual. Solo valida que el usuario y canal existan, no que hubiera membership previa.
+Sin body. Borra la membership del usuario actual.
 
-- `200 {ok:true}` si se borra cero o una fila.
-- `404 {error:"Not found"}` si usuario o canal no existen.
-
-Los canales públicos pueden reaparecer al siguiente list/get por el backfill automático.
+- `200 {ok:true}`. Saca sus sockets del room y emite `channel:member_removed {channelId,userUuid}` al room.
+- `400 {error:"Public channels include everyone"}` en canales públicos (el backfill te volvería a añadir).
+- `400 {error:"Owner must delete the channel"}` si es el owner.
+- `404 {error:"Not found"}` si el canal no existe o el usuario no es miembro.
 
 ## 9. Messages
 
@@ -568,6 +588,11 @@ Payload `{status}`. Solo procesa `online`, `away`, `dnd`; valores restantes se i
 | `typing:stop` | `{channelId,username}` | Fin de indicador |
 | `presence:change` | `{userUuid,username,status}` | Connect, set o disconnect |
 | `thumbnail:ready` | `{messageUuid,url}` | Thumbnail recién generado |
+| `channel:created` | `{channel}` | Canal creado, o te han añadido a uno privado/group |
+| `channel:removed` | `{channelId}` | Te han quitado de un canal (a `user:<uuid>`) |
+| `channel:deleted` | `{channelId}` | El owner ha eliminado el canal |
+| `channel:member_added` | `{channelId,member}` | Alguien añadido al canal (al room) |
+| `channel:member_removed` | `{channelId,userUuid}` | Alguien quitado o que ha salido (al room) |
 
 Los eventos `connect`, `disconnect` y `connect_error` son lifecycle de Socket.IO, no payloads definidos por un handler de dominio. `message:updated`, `message:deleted` y `message:reaction` se emiten desde los handlers REST a los sockets conectados en el room.
 
@@ -697,10 +722,6 @@ Reactions no comprueban membership; typing no comprueba membership; `message:sen
 ### ⚠️ Semántica de errores no uniforme
 
 REST usa `{error}`, mientras el módulo migrado intenta leer `{message}`. Download convierte errores no tipados a 400; thumbnails convierte archivo ausente a 500; Socket.IO usa `{message}`. No hay un envelope común.
-
-### ⚠️ Sin endpoint de eliminación administrativa de miembros
-
-La documentación anuncia `DELETE /api/channels/:uuid/members/:userUuid`, pero solo existe `DELETE /api/channels/:channelId/members/me`.
 
 ### ⚠️ Paginación tolera cursores ajenos al canal
 
