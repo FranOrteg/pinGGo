@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup de la BD de PinGGo (mysqldump + copia a S3)
+After=mysql.service
+Requires=mysql.service
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+ExecStart=/usr/local/sbin/pinggo-backup.sh
+Nice=10
+IOSchedulingClass=idle

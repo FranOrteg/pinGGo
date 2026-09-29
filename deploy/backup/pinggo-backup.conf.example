@@ -1,0 +1,7 @@
+# Configuración de las copias de seguridad de PinGGo (/etc/pinggo-backup.conf, permisos 600)
+BACKUP_DIR=/var/backups/pinggo
+KEEP_DAYS=7
+DB=pinggo
+# Bucket aparte solo para backups (el usuario IAM pinggo-backup solo puede subir)
+S3_URI=s3://pinggo-db-backups-668545548043/mysql
+AWS_PROFILE=pinggo-backup

@@ -1,0 +1,10 @@
+[Unit]
+Description=Prueba de restauración del último backup de PinGGo
+After=mysql.service
+Requires=mysql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pinggo-backup-verify.sh
+Nice=10
+IOSchedulingClass=idle
