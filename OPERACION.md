@@ -36,7 +36,7 @@ El token de Labit es un valor opaco guardado en la BD de Labit. Ningún endpoint
 | Servidor | Cómo | Usuario |
 |---|---|---|
 | **pinggo-prod** | `ssh -i ~/Escritorio/Certificados/LightsailDefaultKey-eu-central-1.pem ubuntu@3.69.56.232` | `ubuntu` |
-| **SRV1-PROD** | `ssh admin@18.184.153.223 -i ~/Escritorio/Certificados/LightsailDefaultKey-eu-central-1.pem` | `admin` |
+| **SRV1-PROD** | Consola AWS → Lightsail → Frankfurt → SRV1-PROD → **Connect using SSH** (desde tu PC el puerto 22 está rechazado) | `admin` |
 
 ## 4. Bases de datos
 
@@ -63,11 +63,39 @@ ssh -i ~/Escritorio/Certificados/LightsailDefaultKey-eu-central-1.pem -N -L 3307
 ```
 y en el programa conecta a `127.0.0.1`, puerto `3307`, usuario `pinggo`, BD `pinggo`, contraseña `DB_PASSWORD`. (DBeaver y Workbench también tienen la opción "SSH tunnel" integrada con los mismos datos.)
 
-Copia de seguridad manual:
+### Copias de seguridad (automáticas)
+
+| Capa | Qué | Cuándo | Retención |
+|---|---|---|---|
+| Dump local | `/var/backups/pinggo/pinggo-<fecha>.sql.gz` + `.sha256` | cada día 03:30 | 7 días |
+| Copia externa | `s3://pinggo-db-backups-668545548043/mysql/` (Frankfurt). El servidor solo puede **subir** (usuario IAM `pinggo-backup`), no leer ni borrar | tras cada dump | 35 días (versionado) |
+| Prueba de restauración | restaura el último dump en una BD temporal, compara tablas y la borra | domingos 05:00 | — |
+| Snapshot Lightsail | disco completo del servidor | cada día 02:00 UTC | 7 días |
+| Adjuntos (`pinggo-files`) | versionado: un fichero borrado/sobrescrito se puede recuperar | siempre | 30 días |
+
+Comprobar que funcionan:
 ```bash
-sudo mysqldump --single-transaction pinggo | gzip > ~/pinggo-$(date +%F).sql.gz
+systemctl list-timers 'pinggo-*' --no-pager          # próximas ejecuciones
+sudo journalctl -u pinggo-backup -n 5 --no-pager     # último backup → "OK pinggo-… (local + s3://…)"
+sudo journalctl -u pinggo-backup-verify -n 15 --no-pager
+sudo ls -lh /var/backups/pinggo
 ```
-(Además, Lightsail hace un snapshot completo del servidor cada día a las 02:00 UTC.)
+Hacer un backup ahora (p. ej. antes de una migración): `sudo systemctl start pinggo-backup.service`
+
+**Restaurar** (scripts en `/usr/local/sbin`, fuentes en el repo `deploy/backup/`):
+```bash
+# 1) En una BD aparte, para consultar o recuperar datos concretos:
+sudo pinggo-restore.sh /var/backups/pinggo/pinggo-<fecha>.sql.gz pinggo_copia
+sudo mysql pinggo_copia          # … y al terminar: sudo mysql -e "DROP DATABASE pinggo_copia"
+
+# 2) Sobre producción (sustituye TODO por el contenido del dump):
+pm2 stop pinggo-back
+sudo FORCE=1 pinggo-restore.sh /var/backups/pinggo/pinggo-<fecha>.sql.gz pinggo
+pm2 start pinggo-back
+```
+Si el servidor se ha perdido: descarga el dump desde la consola de AWS (S3 → `pinggo-db-backups-668545548043` → `mysql/`) con tu usuario administrador, súbelo al servidor nuevo y usa `pinggo-restore.sh`. El script comprueba el `.sha256` si está junto al fichero.
+
+Configuración: `/etc/pinggo-backup.conf` (carpeta, días, bucket). Clave de AWS: `sudo aws configure --profile pinggo-backup` (se guarda en `/root/.aws/`).
 
 ### 4.2 BD de Labit (en SRV1-PROD) — producción de Skylab, solo lectura
 Entra por la consola web y:
@@ -105,6 +133,7 @@ Flujo de trabajo normal: cambias código en tu PC → `cd back && npm test` → 
 | Contraseñas de BD y Redis, secretos JWT | `/root/pinggo-secrets.env` (pinggo-prod) — y copiados en `/opt/pinggo/back/.env` |
 | Configuración del back (URL de Labit, CORS, S3…) | `/opt/pinggo/back/.env` (permisos 600) |
 | Clave de AWS para S3 | usuario IAM `pinggo-prod` (solo acceso al bucket `pinggo-files`), en `back/.env` |
+| Clave de AWS para backups | usuario IAM `pinggo-backup` (solo subir a `pinggo-db-backups-…/mysql/`), en `/root/.aws/credentials` |
 | Clave SSH de los servidores | `~/Escritorio/Certificados/LightsailDefaultKey-eu-central-1.pem` (tu PC) |
 
 Nunca subas `.env` al repo (ya está en `.gitignore`) ni pegues tokens en chats.
