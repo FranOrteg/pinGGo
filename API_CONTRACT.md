@@ -755,6 +755,7 @@ Resumen operativo para el agente que adapte el módulo Skylab. Esto identifica l
 - Listar: `GET /api/channels` → `{channels}`.
 - Crear público: `POST /api/channels` con `{name,description,isPrivate:false,memberUuids}`; `isPrivate:true` crea `type='private'` aunque no se envíe `type`.
 - Crear DM: `POST /api/channels` con `{type:'direct',memberUuids:[otherUserUuid]}`. No usar `is_direct_message` ni `isDirectMessage`.
+- DM con uno mismo (notas personales, estilo Slack): `memberUuids:[ownUuid]`. Es un canal `direct` con un único miembro; si ya existe se devuelve el mismo (200). En estos canales `name`/`dm_user_uuid`/`dm_avatar_url` son los del propio usuario y `is_self_dm` vale `1` (en el resto, `0`).
 - Clasificar DM por `channel.type === 'direct'`; no por flag ausente.
 - Miembros: `GET /api/channels/:channelId` y leer `data.channel.members`.
 - Unirse al room tras seleccionar canal: `channel:join` `{channelId}`.
