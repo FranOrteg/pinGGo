@@ -8,6 +8,21 @@ import { getThumbnailKey } from './thumbnailService.js';
 // DMs are fixed to their two participants).
 const MANAGED_TYPES = new Set(['private', 'group']);
 
+/**
+ * SQL subquery for a column of the DM peer of user `u` in channel `c`. Prefers the other
+ * participant; in a self-DM (the user is the only member) it resolves to the user itself.
+ */
+const dmPeer = (column) =>
+  `(SELECT u2.${column} FROM channel_members cm2
+    JOIN users u2 ON u2.id = cm2.user_id
+    WHERE cm2.channel_id = c.id
+    ORDER BY (cm2.user_id = u.id) ASC
+    LIMIT 1)`;
+
+/** A self-DM is a direct channel whose only member is its owner (Slack-style notes to self). */
+const IS_SELF_DM = `(c.type = 'direct'
+  AND (SELECT COUNT(*) FROM channel_members cm3 WHERE cm3.channel_id = c.id) = 1)`;
+
 /** Same shape `channel:created` already carries, so clients reuse their handler. */
 async function getChannelSummary(channelId) {
   const channel = await queryOne(
@@ -50,35 +65,16 @@ export async function getMyChannels(req, res, next) {
 
     const channels = await query(
       `SELECT c.uuid,
-              CASE WHEN c.type = 'direct'
-                   THEN (SELECT u2.username FROM channel_members cm2
-                         JOIN users u2 ON u2.id = cm2.user_id
-                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
-                         LIMIT 1)
-                   ELSE c.name
-              END AS name,
-              CASE WHEN c.type = 'direct'
-                   THEN (SELECT u2.uuid FROM channel_members cm2
-                         JOIN users u2 ON u2.id = cm2.user_id
-                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
-                         LIMIT 1)
-              END AS dm_user_uuid,
-              CASE WHEN c.type = 'direct'
-                   THEN (SELECT u2.avatar_url FROM channel_members cm2
-                         JOIN users u2 ON u2.id = cm2.user_id
-                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
-                         LIMIT 1)
-              END AS dm_avatar_url,
-              CASE WHEN c.type = 'direct'
-                   THEN (SELECT u2.status FROM channel_members cm2
-                         JOIN users u2 ON u2.id = cm2.user_id
-                         WHERE cm2.channel_id = c.id AND cm2.user_id != u.id
-                         LIMIT 1)
-              END AS dm_status,
+              CASE WHEN c.type = 'direct' THEN ${dmPeer('username')} ELSE c.name END AS name,
+              CASE WHEN c.type = 'direct' THEN ${dmPeer('uuid')} END AS dm_user_uuid,
+              CASE WHEN c.type = 'direct' THEN ${dmPeer('avatar_url')} END AS dm_avatar_url,
+              CASE WHEN c.type = 'direct' THEN ${dmPeer('status')} END AS dm_status,
+              ${IS_SELF_DM} AS is_self_dm,
               c.type, c.description, c.is_private, c.created_at,
               (SELECT COUNT(*) FROM messages m
                WHERE m.channel_id = c.id
                  AND m.deleted_at IS NULL
+                 AND m.user_id != cm.user_id
                  AND (cm.last_read_at IS NULL OR m.created_at > cm.last_read_at)
               ) AS unread_count
        FROM channels c
@@ -146,43 +142,40 @@ export async function createChannel(req, res, next) {
     const creator = await queryOne('SELECT id FROM users WHERE uuid = ?', [req.user.sub]);
     if (!creator) return res.status(404).json({ error: 'User not found' });
 
-    // For DMs: check if a direct channel already exists between these two users to avoid duplicates
+    // For DMs: reuse the existing direct channel instead of creating a duplicate.
+    // A self-DM (memberUuids = [own uuid]) is the direct channel where the user is alone.
     if (type === 'direct' && memberUuids.length === 1) {
-      const existing = await queryOne(
-        `SELECT c.uuid FROM channels c
-         JOIN channel_members cm1 ON cm1.channel_id = c.id
-         JOIN users u1 ON u1.id = cm1.user_id AND u1.uuid = ?
-         JOIN channel_members cm2 ON cm2.channel_id = c.id
-         JOIN users u2 ON u2.id = cm2.user_id AND u2.uuid = ?
-         WHERE c.type = 'direct'
-         LIMIT 1`,
-        [req.user.sub, memberUuids[0]]
-      );
+      const isSelfDm = memberUuids[0] === req.user.sub;
+      const existing = isSelfDm
+        ? await queryOne(
+          `SELECT c.uuid FROM channels c
+           JOIN channel_members cm ON cm.channel_id = c.id
+           JOIN users u ON u.id = cm.user_id AND u.uuid = ?
+           WHERE ${IS_SELF_DM}
+           LIMIT 1`,
+          [req.user.sub]
+        )
+        : await queryOne(
+          `SELECT c.uuid FROM channels c
+           JOIN channel_members cm1 ON cm1.channel_id = c.id
+           JOIN users u1 ON u1.id = cm1.user_id AND u1.uuid = ?
+           JOIN channel_members cm2 ON cm2.channel_id = c.id
+           JOIN users u2 ON u2.id = cm2.user_id AND u2.uuid = ?
+           WHERE c.type = 'direct' AND u1.id != u2.id
+           LIMIT 1`,
+          [req.user.sub, memberUuids[0]]
+        );
       if (existing) {
         const ch = await queryOne(
           `SELECT c.uuid, c.type, c.is_private, c.description,
-                  CASE WHEN c.type = 'direct'
-                       THEN (SELECT u2.username FROM channel_members cm2
-                             JOIN users u2 ON u2.id = cm2.user_id
-                             WHERE cm2.channel_id = c.id AND cm2.user_id != ?
-                             LIMIT 1)
-                       ELSE c.name
-                  END AS name,
-                  CASE WHEN c.type = 'direct'
-                       THEN (SELECT u2.uuid FROM channel_members cm2
-                             JOIN users u2 ON u2.id = cm2.user_id
-                             WHERE cm2.channel_id = c.id AND u2.uuid != ?
-                             LIMIT 1)
-                  END AS dm_user_uuid,
-                  CASE WHEN c.type = 'direct'
-                       THEN (SELECT u2.avatar_url FROM channel_members cm2
-                             JOIN users u2 ON u2.id = cm2.user_id
-                             WHERE cm2.channel_id = c.id AND u2.uuid != ?
-                             LIMIT 1)
-                  END AS dm_avatar_url
+                  ${dmPeer('username')} AS name,
+                  ${dmPeer('uuid')} AS dm_user_uuid,
+                  ${dmPeer('avatar_url')} AS dm_avatar_url,
+                  ${IS_SELF_DM} AS is_self_dm
            FROM channels c
+           JOIN users u ON u.uuid = ?
            WHERE c.uuid = ?`,
-          [req.user.sub, req.user.sub, req.user.sub, existing.uuid]
+          [req.user.sub, existing.uuid]
         );
         return res.json({ channel: ch });
       }
@@ -223,14 +216,18 @@ export async function createChannel(req, res, next) {
     }
 
     let otherMember = null;
+    let isSelfDm = false;
     if (isDirect) {
+      // Other participant first; a self-DM has none, so it falls back to the creator.
       otherMember = await queryOne(
         `SELECT u.uuid, u.username, u.avatar_url FROM channel_members cm
          JOIN users u ON u.id = cm.user_id
-         WHERE cm.channel_id = ? AND u.uuid != ?
+         WHERE cm.channel_id = ?
+         ORDER BY (u.uuid = ?) ASC
          LIMIT 1`,
         [channel.id, req.user.sub]
       );
+      isSelfDm = type === 'direct' && otherMember?.uuid === req.user.sub;
     }
 
     const responseChannel = {
@@ -241,6 +238,7 @@ export async function createChannel(req, res, next) {
       is_private: isPrivateFinal ? 1 : 0,
       dm_user_uuid: type === 'direct' ? (otherMember?.uuid ?? null) : null,
       dm_avatar_url: type === 'direct' ? (otherMember?.avatar_url ?? null) : null,
+      is_self_dm: isSelfDm ? 1 : 0,
     };
 
     const io = getIO();
