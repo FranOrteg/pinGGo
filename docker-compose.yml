@@ -13,7 +13,9 @@ services:
       - mysql_data:/var/lib/mysql
       - ./back/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD}']
+      # TCP (127.0.0.1), not the socket: during first-run init the temporary server only
+      # listens on the socket, so a socket ping would report healthy before port 3306 is up.
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD}']
       interval: 5s
       timeout: 5s
       retries: 10
