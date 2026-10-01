@@ -321,6 +321,8 @@ function extractYouTubeId(url) {
   return m ? m[1] : null;
 }
 
+const youTubeThumbnail = (videoId) => `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
 function buildYouTubeFallback(url, videoId) {
   const domain = url.hostname.replace(/^www\./, '');
   return {
@@ -330,11 +332,46 @@ function buildYouTubeFallback(url, videoId) {
     domain,
     title: 'Watch on YouTube',
     description: null,
-    image: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    image: youTubeThumbnail(videoId),
     favicon: 'https://youtube.com/favicon.ico',
     type: 'video',
     videoId,
     embedUrl: `https://www.youtube.com/embed/${videoId}`,
+  };
+}
+
+/**
+ * YouTube serves datacenter IPs (e.g. AWS) a degraded "- YouTube" page without
+ * og:* tags, so scraping the watch page loses title and thumbnail in production.
+ * The oEmbed endpoint keeps answering those IPs. Fixed trusted host → no SSRF guards.
+ */
+async function fetchYouTubeOEmbed(videoId) {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(endpoint, {
+      signal: controller.signal,
+      headers: { 'user-agent': UA, accept: 'application/json' },
+    });
+    // 401/404: private, removed or non-embeddable video
+    if (!res.ok) throw fetchFailed(`oEmbed HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    if (err?.name === 'AbortError') throw timedOut();
+    throw err instanceof PreviewError ? err : fetchFailed(err?.message);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildYouTubePreview(url, videoId, oembed) {
+  return {
+    ...buildYouTubeFallback(url, videoId),
+    title: clean(oembed.title) || 'Watch on YouTube',
+    description: clean(oembed.author_name) || null,
   };
 }
 
@@ -370,7 +407,7 @@ function buildFullPreview({ inputUrl, finalUrl, meta, videoId }) {
     domain,
     title: meta.title || provider,
     description: meta.description,
-    image: meta.image,
+    image: meta.image || (videoId ? youTubeThumbnail(videoId) : null),
     favicon: meta.icon || `https://${domain}/favicon.ico`,
     type: meta.type,
     videoId: videoId || null,
@@ -381,7 +418,8 @@ function buildFullPreview({ inputUrl, finalUrl, meta, videoId }) {
 // ────────────────────────────── Cache ──────────────────────────────
 
 function cacheKey(url) {
-  return `linkpreview:${createHash('md5').update(url).digest('hex')}`;
+  // v2: drops "- YouTube" previews without thumbnail cached before the oEmbed path
+  return `linkpreview:v2:${createHash('md5').update(url).digest('hex')}`;
 }
 
 async function cacheGet(key) {
@@ -424,6 +462,17 @@ export async function getLinkPreview(rawUrl) {
   let preview;
   let ttl = CACHE_TTL_FULL;
 
+  if (videoId) {
+    try {
+      preview = buildYouTubePreview(url, videoId, await fetchYouTubeOEmbed(videoId));
+    } catch {
+      preview = buildYouTubeFallback(url, videoId);
+      ttl = CACHE_TTL_FALLBACK;
+    }
+    await cacheSet(key, preview, ttl);
+    return preview;
+  }
+
   try {
     const { html, finalUrl } = await fetchPageSafely(url);
     const meta = extractOgMetadata(html, finalUrl);
@@ -436,13 +485,8 @@ export async function getLinkPreview(rawUrl) {
     if (!meta.title) ttl = CACHE_TTL_FALLBACK;
   } catch (err) {
     if (err?.code === 'BLOCKED') throw err;
-    if (videoId) {
-      // YouTube page blocked/slow — derive everything we need locally.
-      preview = buildYouTubeFallback(url, videoId);
-    } else {
-      // Provider unreachable or hid metadata (e.g. LinkedIn): show domain + URL.
-      preview = buildMinimalPreview(url);
-    }
+    // Provider unreachable or hid metadata (e.g. LinkedIn): show domain + URL.
+    preview = buildMinimalPreview(url);
     ttl = CACHE_TTL_FALLBACK;
   }
 
