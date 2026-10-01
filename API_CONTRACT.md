@@ -116,6 +116,7 @@ Todos los paths siguientes incluyen el prefijo `/api`. `auth` indica si se exige
 | `GET /api/channels` | Listar canales visibles | Sí | — | `200 {channels}` |
 | `POST /api/channels` | Crear canal/direct/group | Sí | Body de canal | `201 {channel}` o `200 {channel}` si DM direct existente |
 | `GET /api/channels/:channelId` | Canal y sus miembros | Sí | `channelId` | `200 {channel}` |
+| `PATCH /api/channels/:channelId` | Editar nombre/descripción o hacer público | Sí | `channelId` + body | `200 {channel}` |
 | `DELETE /api/channels/:channelId` | Eliminar canal (solo owner) | Sí | `channelId` | `200 {ok:true}` |
 | `POST /api/channels/:channelId/read` | Actualizar `last_read_at` | Sí | `channelId` | `200 {ok:true}` |
 | `DELETE /api/channels/:channelId/members/me` | Salir del canal | Sí | `channelId` | `200 {ok:true}` |
@@ -253,7 +254,7 @@ Requiere auth, pero no restringe el perfil al propio usuario. `200 {avatarUrl}`:
 
 No hay una flag API `isDirectMessage` ni `is_direct_message` en el backend actual. La forma efectiva de crear un DM es `type: "direct"` con `memberUuids`.
 
-`created_by` se guarda en DB, pero no se devuelve. El creator se representa en `channel_members.role = "owner"`; no se devuelve un campo `owner`/`creator`.
+`created_by` solo se expone en `GET /api/channels/:channelId` como `created_by_uuid`/`created_by_username`. El owner se representa en `channel_members.role = "owner"`.
 
 ### `GET /api/channels`
 
@@ -282,9 +283,9 @@ No incluye `members`, `memberUuids`, `owner`, `creator`, `isPrivate` ni `isDirec
 
 `channelId` es el UUID. El backend hace backfill de miembros para ese canal si `type='channel'`; después exige que el solicitante esté en `channel_members`.
 
-- `200`: `{ channel: { uuid, name, type, is_private, created_at, members } }`.
+- `200`: `{ channel: { uuid, name, description, type, is_private, created_at, created_by_uuid, created_by_username, members } }`.
 - `members` es un array de `{uuid,username,avatar_url,status,role}`; `role` es `owner|admin|member`.
-- **No incluye `description`**, a diferencia de list/create.
+- `created_by_uuid`/`created_by_username` son `null` si el creador ya no existe.
 - `404 {error:"Channel not found"}` si no existe o el usuario no tiene membership.
 - `500`: DB.
 
@@ -319,6 +320,21 @@ Respuesta de creación nueva (`201`):
 Respuesta de DM `direct` ya existente (`200`): `{channel:{uuid,type,is_private,description,name,dm_user_uuid,dm_avatar_url}}`. No incluye `dm_status` ni members.
 
 Statuses adicionales: `400 name is required`; `404 User not found` si no existe el creator; `500` por payload mal formado, DB o carrera de duplicados.
+
+### `PATCH /api/channels/:channelId`
+
+Body (todos opcionales):
+
+| Campo | Tipo | Quién | Descripción |
+| --- | --- | --- | --- |
+| `name` | string `^[a-z0-9_-]{1,80}$` | `owner`/`admin` | Nuevo nombre (el front ya lo normaliza) |
+| `description` | string ≤ 255 | `owner`/`admin` | Nueva descripción (se hace trim) |
+| `isPrivate` | solo `false` | `owner` | Convierte un canal `private` en público (`type='channel'`, `is_private=0`) y añade a todos los usuarios como `member` |
+
+- `200 {channel:{uuid,name,description,type,is_private,dm_user_uuid:null,dm_avatar_url:null}}`.
+- Emite `channel:updated {channel}`: a todos si el canal es público; si no, a `user:<uuid>` de cada miembro. Al hacerlo público también emite `channel:created {channel}` a todos para que los nuevos miembros lo vean.
+- `400` si es `direct`/`group`, nombre o descripción inválidos, o `isPrivate !== false` (público → privado no está soportado).
+- `403` si no tiene el rol necesario. `404` si no existe o no es miembro.
 
 ### `POST /api/channels/:channelId/members`
 
@@ -591,6 +607,7 @@ Payload `{status}`. Solo procesa `online`, `away`, `dnd`; valores restantes se i
 | `channel:created` | `{channel}` | Canal creado, o te han añadido a uno privado/group |
 | `channel:removed` | `{channelId}` | Te han quitado de un canal (a `user:<uuid>`) |
 | `channel:deleted` | `{channelId}` | El owner ha eliminado el canal |
+| `channel:updated` | `{channel}` | Nombre/descripción editados o canal hecho público |
 | `channel:member_added` | `{channelId,member}` | Alguien añadido al canal (al room) |
 | `channel:member_removed` | `{channelId,userUuid}` | Alguien quitado o que ha salido (al room) |
 
@@ -608,7 +625,7 @@ API: mantiene `avatar_url`, `last_seen`, `created_at`, `status` en snake_case; n
 
 DB: `id`, `uuid`, `name`, `description`, `type`, `is_private`, `created_by`, `created_at`.
 
-API: mantiene `is_private`, `created_at`, y añade aliases SQL `dm_user_uuid`, `dm_avatar_url`, `dm_status`, `unread_count`. `created_by` no se expone. `type` es la fuente de verdad para normal/direct/private/group.
+API: mantiene `is_private`, `created_at`, y añade aliases SQL `dm_user_uuid`, `dm_avatar_url`, `dm_status`, `unread_count`. `created_by` solo se expone en el detalle como `created_by_uuid`/`created_by_username`. `type` es la fuente de verdad para normal/direct/private/group.
 
 ### ChannelMember
 

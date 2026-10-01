@@ -105,10 +105,12 @@ export async function getChannel(req, res, next) {
     );
 
     const channel = await queryOne(
-      `SELECT c.uuid, c.name, c.type, c.is_private, c.created_at
+      `SELECT c.uuid, c.name, c.description, c.type, c.is_private, c.created_at,
+              cu.uuid AS created_by_uuid, cu.username AS created_by_username
        FROM channels c
        JOIN channel_members cm ON cm.channel_id = c.id
        JOIN users u ON u.id = cm.user_id
+       LEFT JOIN users cu ON cu.id = c.created_by
        WHERE c.uuid = ? AND u.uuid = ?`,
       [channelId, req.user.sub]
     );
@@ -261,6 +263,101 @@ export async function createChannel(req, res, next) {
     }
 
     res.status(201).json({ channel: responseChannel });
+  } catch (err) {
+    next(err);
+  }
+}
+
+const CHANNEL_NAME_RE = /^[a-z0-9_-]{1,80}$/;
+
+/**
+ * PATCH /:channelId — rename / edit description (owner or admin) and turn a private
+ * channel public (owner only). Public → private is not supported: members would have
+ * to be picked again and everyone already saw the history.
+ */
+export async function updateChannel(req, res, next) {
+  try {
+    const { channelId } = req.params;
+    const { name, description, isPrivate } = req.body;
+
+    const requester = await getRequesterMembership(channelId, req.user.sub);
+    if (!requester) return res.status(404).json({ error: 'Channel not found' });
+    if (requester.type === 'direct' || requester.type === 'group') {
+      return res.status(400).json({ error: 'Direct messages cannot be edited' });
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined || description !== undefined) {
+      if (!['owner', 'admin'].includes(requester.role)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      if (name !== undefined) {
+        if (typeof name !== 'string' || !CHANNEL_NAME_RE.test(name)) {
+          return res.status(400).json({ error: 'Invalid channel name' });
+        }
+        updates.push('name = ?');
+        params.push(name);
+      }
+      if (description !== undefined) {
+        if (typeof description !== 'string' || description.length > 255) {
+          return res.status(400).json({ error: 'Invalid description' });
+        }
+        updates.push('description = ?');
+        params.push(description.trim());
+      }
+    }
+
+    let madePublic = false;
+    if (isPrivate !== undefined) {
+      if (isPrivate !== false) {
+        return res.status(400).json({ error: 'Public channels cannot be made private' });
+      }
+      if (requester.role !== 'owner') {
+        return res.status(403).json({ error: 'Only the channel owner can make it public' });
+      }
+      if (requester.type === 'private') {
+        updates.push("type = 'channel'", 'is_private = 0');
+        madePublic = true;
+      }
+    }
+
+    if (updates.length) {
+      await query(`UPDATE channels SET ${updates.join(', ')} WHERE id = ?`, [...params, requester.channelId]);
+    }
+
+    // Same rule as createChannel: a public channel has every user as a member
+    if (madePublic) {
+      await query(
+        `INSERT IGNORE INTO channel_members (channel_id, user_id, role)
+         SELECT ?, id, 'member' FROM users`,
+        [requester.channelId]
+      );
+    }
+
+    const channel = await getChannelSummary(requester.channelId);
+
+    const io = getIO();
+    if (io && updates.length) {
+      if (channel.type === 'channel') {
+        // New members add it to their sidebar; existing ones ignore the duplicate uuid
+        if (madePublic) io.emit('channel:created', { channel });
+        io.emit('channel:updated', { channel });
+      } else {
+        const memberRows = await query(
+          `SELECT u.uuid FROM channel_members cm
+           JOIN users u ON u.id = cm.user_id
+           WHERE cm.channel_id = ?`,
+          [requester.channelId]
+        );
+        for (const { uuid } of memberRows) {
+          io.to(`user:${uuid}`).emit('channel:updated', { channel });
+        }
+      }
+    }
+
+    res.json({ channel });
   } catch (err) {
     next(err);
   }

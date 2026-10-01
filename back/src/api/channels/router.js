@@ -4,6 +4,7 @@ import {
   getMyChannels,
   createChannel,
   getChannel,
+  updateChannel,
   addMember,
   removeMember,
   deleteChannel,
@@ -19,6 +20,7 @@ router.use(authenticate);
 router.get('/', getMyChannels);
 router.post('/', createChannel);
 router.get('/:channelId', getChannel);
+router.patch('/:channelId', updateChannel);
 router.delete('/:channelId', deleteChannel);
 router.post('/:channelId/read', markChannelRead);
 router.delete('/:channelId/members/me', leaveChannel);
