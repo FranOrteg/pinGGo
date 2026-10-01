@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../db/pool.js';
 import { getIO } from '../socket/io.js';
 import { deleteS3Objects } from './uploadService.js';
-import { getThumbnailKey } from './thumbnailService.js';
+import { getThumbnailKey, getPreviewPdfKey } from './thumbnailService.js';
 
 // Only these channel types have a curated member list (public channels include everyone,
 // DMs are fixed to their two participants).
@@ -489,8 +489,8 @@ export async function deleteChannel(req, res, next) {
 
     res.json({ ok: true });
 
-    // Best-effort S3 cleanup (attachments + generated thumbnails), off the request path
-    const keys = fileRows.flatMap(({ file_key: key }) => [key, getThumbnailKey(key)]);
+    // Best-effort S3 cleanup (attachments + generated thumbnails/preview PDFs), off the request path
+    const keys = fileRows.flatMap(({ file_key: key }) => [key, getThumbnailKey(key), getPreviewPdfKey(key)]);
     deleteS3Objects(keys).catch((err) =>
       console.error(`[channels] S3 cleanup failed for channel ${channelId}:`, err)
     );

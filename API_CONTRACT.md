@@ -130,6 +130,7 @@ Todos los paths siguientes incluyen el prefijo `/api`. `auth` indica si se exige
 | `POST /api/upload/presign` | Presign PUT de attachment | Sí | Body de archivo + canal | `200 {uploadUrl,fileKey}` |
 | `GET /api/download/presign?uuid=...&view=true` | Presign GET de archivo de mensaje | Sí | Query `uuid,view` | `200 {downloadUrl,fileName}` |
 | `GET /api/thumbnails/presign?uuid=...` | Presign/generar thumbnail PDF/Office | Sí | Query `uuid` | `200 {url}` |
+| `GET /api/documents/preview?uuid=...` | PDF para el visor de documentos (PDF/Office) | Sí | Query `uuid` | `200 {url}` |
 | `GET /api/previews/resolve?url=...` | Resolver metadata Open Graph | Sí | Query `url` | `200` objeto preview plano |
 
 No existen actualmente endpoints HTTP para modificar/eliminar canal, eliminar a otro miembro, listar DMs, listar reacciones, subir multipart, crear mensajes por REST ni endpoint independiente de presence.
@@ -499,6 +500,15 @@ Query `uuid`: UUID del message, obligatorio. Requiere que exista archivo, member
 - `500` descarga S3, `pdftoppm`, LibreOffice u otro error.
 
 Genera thumbnail bajo `thumbnails/<original-key-without-extension>_thumb.png`, limita la fuente a 25 MiB, y deduplica generaciones concurrentes. Si acaba de generarse, emite `thumbnail:ready` al room del canal.
+
+### `GET /api/documents/preview`
+
+Query obligatoria `uuid` (UUID del mensaje). Exige membership del canal del archivo.
+
+- PDF: `200 {url}` con URL firmada (1 h) del original, inline y `Content-Type: application/pdf`.
+- Office (doc/docx/xls/xlsx/ppt/pptx): convierte con LibreOffice a PDF, lo guarda en S3 como `previews/<base>.pdf` y devuelve su URL firmada. Las siguientes peticiones reutilizan el PDF. La conversión de la miniatura (`/thumbnails/presign`) también guarda este PDF.
+- `400 uuid required`; `403 Access denied`; `404 File not found`; `415` si el tipo no es PDF/Office; `500` si falla la conversión (timeout 60 s, origen > 25 MB).
+- Al eliminar un canal se borran también las claves `previews/…`.
 
 ## 11. Link previews
 

@@ -7,6 +7,7 @@ import uploadRouter from './upload/router.js';
 import downloadRouter from './download/router.js';
 import thumbnailsRouter from './thumbnails/router.js';
 import previewsRouter from './previews/router.js';
+import documentsRouter from './documents/router.js';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/upload', uploadRouter);
 router.use('/download', downloadRouter);
 router.use('/thumbnails', thumbnailsRouter);
 router.use('/previews', previewsRouter);
+router.use('/documents', documentsRouter);
 
 export default router;

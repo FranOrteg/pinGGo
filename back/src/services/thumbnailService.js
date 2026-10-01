@@ -12,6 +12,8 @@ import config from '../config/index.js';
 
 const MAX_SOURCE_SIZE = 25 * 1024 * 1024; // 25 MB — same cap as upload
 const LIBREOFFICE_TIMEOUT_MS = 30000;
+// Full-document previews of large decks take longer than a first-page thumbnail
+const LIBREOFFICE_PREVIEW_TIMEOUT_MS = 60000;
 const PDFTOPPM_TIMEOUT_MS = 20000;
 const MAX_PROCESS_OUTPUT = 10 * 1024 * 1024; // cap captured stdout/stderr
 const S3_PRESIGN_TTL = 3600;
@@ -47,6 +49,13 @@ export function getThumbnailKey(originalKey) {
   return `thumbnails/${base}_thumb.png`;
 }
 
+/** Full PDF rendition of an Office file, shown by the in-app document viewer. */
+export function getPreviewPdfKey(originalKey) {
+  const ext = path.extname(originalKey);
+  const base = originalKey.slice(0, -ext.length || undefined);
+  return `previews/${base}.pdf`;
+}
+
 function getExtForType(fileType) {
   if (fileType.includes('spreadsheet') || fileType.includes('excel')) return 'xlsx';
   if (fileType.includes('word') || fileType.includes('doc')) return 'docx';
@@ -67,6 +76,15 @@ function signThumbnailUrl(s3, bucket, thumbKey) {
   return getSignedUrl(
     s3,
     new GetObjectCommand({ Bucket: bucket, Key: thumbKey }),
+    { expiresIn: S3_PRESIGN_TTL }
+  );
+}
+
+/** Inline PDF URL: no attachment disposition so pdf.js and browsers can render it. */
+function signPdfUrl(s3, bucket, key) {
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentType: 'application/pdf' }),
     { expiresIn: S3_PRESIGN_TTL }
   );
 }
@@ -172,7 +190,8 @@ async function renderPdfPageToPng(pdfPath, tmpDir) {
   return readFile(`${prefix}.png`);
 }
 
-async function convertOfficeToPng(inputPath, tmpDir) {
+/** Converts an Office file to PDF inside tmpDir and returns the PDF path. */
+async function convertOfficeToPdf(inputPath, tmpDir, { timeoutMs = LIBREOFFICE_TIMEOUT_MS } = {}) {
   // Isolated profile dir per run avoids LibreOffice profile lock contention
   // between concurrent conversions and lives inside tmpDir (cleaned up after).
   const profileDir = path.join(tmpDir, 'lo_profile');
@@ -190,12 +209,17 @@ async function convertOfficeToPng(inputPath, tmpDir) {
       tmpDir,
       inputPath,
     ],
-    { timeoutMs: LIBREOFFICE_TIMEOUT_MS }
+    { timeoutMs }
   );
 
   const base = path.basename(inputPath, path.extname(inputPath));
-  const pdfPath = path.join(tmpDir, `${base}.pdf`);
-  return renderPdfPageToPng(pdfPath, tmpDir);
+  return path.join(tmpDir, `${base}.pdf`);
+}
+
+function putPdf(s3, bucket, key, body) {
+  return s3.send(
+    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: 'application/pdf' })
+  );
 }
 
 async function generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType) {
@@ -209,7 +233,12 @@ async function generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType
     if (fileType === 'application/pdf') {
       pngBuffer = await renderPdfPageToPng(sourcePath, tmpDir);
     } else if (isOfficeType(fileType)) {
-      pngBuffer = await convertOfficeToPng(sourcePath, tmpDir);
+      const pdfPath = await convertOfficeToPdf(sourcePath, tmpDir);
+      pngBuffer = await renderPdfPageToPng(pdfPath, tmpDir);
+      // Keep the full PDF too, so opening the document viewer needs no second conversion
+      await putPdf(s3, bucket, getPreviewPdfKey(fileKey), await readFile(pdfPath)).catch((err) =>
+        console.error('[thumbnails] could not store preview PDF:', err.message)
+      );
     } else {
       return null;
     }
@@ -253,5 +282,44 @@ export async function getThumbnailUrl(messageUuid, { fileKey, fileType }) {
   inFlight.set(thumbKey, task);
   task.finally(() => inFlight.delete(thumbKey)).catch(() => {});
 
+  return task;
+}
+
+async function generateAndStorePreviewPdf(s3, bucket, previewKey, fileKey, fileType) {
+  const tmpDir = await mkdtemp(path.join(tmpdir(), 'preview-'));
+  try {
+    const ext = path.extname(fileKey) || `.${getExtForType(fileType)}`;
+    const sourcePath = path.join(tmpDir, `source${ext}`);
+    await downloadSourceToTemp(s3, bucket, fileKey, sourcePath);
+    const pdfPath = await convertOfficeToPdf(sourcePath, tmpDir, {
+      timeoutMs: LIBREOFFICE_PREVIEW_TIMEOUT_MS,
+    });
+    await putPdf(s3, bucket, previewKey, await readFile(pdfPath));
+    return signPdfUrl(s3, bucket, previewKey);
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * URL of a PDF the document viewer can render: the original for PDFs, a cached
+ * LibreOffice conversion (generated on first request) for Office files.
+ */
+export async function getDocumentPreviewUrl({ fileKey, fileType }) {
+  const s3 = getS3Client();
+  const bucket = config.s3.bucket;
+
+  if (fileType === 'application/pdf') return signPdfUrl(s3, bucket, fileKey);
+  if (!isOfficeType(fileType)) return null;
+
+  const previewKey = getPreviewPdfKey(fileKey);
+  if (await fileExistsInS3(s3, bucket, previewKey)) return signPdfUrl(s3, bucket, previewKey);
+
+  const pending = inFlight.get(previewKey);
+  if (pending) return pending;
+
+  const task = generateAndStorePreviewPdf(s3, bucket, previewKey, fileKey, fileType);
+  inFlight.set(previewKey, task);
+  task.finally(() => inFlight.delete(previewKey)).catch(() => {});
   return task;
 }
