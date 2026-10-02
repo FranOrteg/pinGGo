@@ -6,6 +6,14 @@ let pool;
 export async function connectDB() {
   pool = mysql.createPool(config.db);
 
+  // DATETIME columns are written by MySQL itself (CURRENT_TIMESTAMP / NOW()) and read back
+  // as UTC (config.db.timezone 'Z'). Pin every session to UTC so that holds even when the
+  // MySQL server runs in local time (production: Europe/Madrid) — otherwise times show +1/+2 h.
+  // The SET is queued on the connection before any query the app sends through it.
+  pool.on('connection', (connection) => {
+    connection.query("SET time_zone = '+00:00'");
+  });
+
   const conn = await pool.getConnection();
   console.log('[db] MySQL connected');
   conn.release();
