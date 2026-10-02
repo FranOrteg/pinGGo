@@ -70,10 +70,14 @@ export async function createPresignedDownload(uuid, userUuid, { view = false } =
         ...(view ? {} : { ResponseContentDisposition: `attachment; filename="${file.file_name}"` }),
     });
 
-    const downloadUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 300 });
+    // Inline URLs back <img> tags and the viewer, which clients cache and re-render
+    // long after loading: 1 h like thumbnails/avatars. Downloads are one-off clicks.
+    const expiresIn = view ? 3600 : 300;
+    const downloadUrl = await getSignedUrl(getS3Client(), command, { expiresIn });
 
     return {
         downloadUrl,
         fileName: file.file_name,
+        expiresIn,
     }
 }

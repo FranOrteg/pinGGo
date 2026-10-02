@@ -128,7 +128,7 @@ Todos los paths siguientes incluyen el prefijo `/api`. `auth` indica si se exige
 | `POST /api/messages/:messageId/reactions` | Añadir reacción idempotente | Sí | `messageId` + body | `200 {ok,reactions}` |
 | `DELETE /api/messages/:messageId/reactions/:emoji` | Eliminar reacción propia | Sí | `messageId,emoji` | `200 {ok,reactions}` |
 | `POST /api/upload/presign` | Presign PUT de attachment | Sí | Body de archivo + canal | `200 {uploadUrl,fileKey}` |
-| `GET /api/download/presign?uuid=...&view=true` | Presign GET de archivo de mensaje | Sí | Query `uuid,view` | `200 {downloadUrl,fileName}` |
+| `GET /api/download/presign?uuid=...&view=true` | Presign GET de archivo de mensaje | Sí | Query `uuid,view` | `200 {downloadUrl,fileName,expiresIn}` |
 | `GET /api/thumbnails/presign?uuid=...` | Presign/generar thumbnail PDF/Office | Sí | Query `uuid` | `200 {url}` |
 | `GET /api/documents/preview?uuid=...` | PDF para el visor de documentos (PDF/Office) | Sí | Query `uuid` | `200 {url}` |
 | `GET /api/previews/resolve?url=...` | Resolver metadata Open Graph | Sí | Query `url` | `200` objeto preview plano |
@@ -484,7 +484,7 @@ Query exacta:
 - `uuid`: UUID del **message**, obligatorio para funcionar.
 - `view`: solo el valor exacto `"true"` activa modo view; cualquier otro valor es download.
 
-La consulta obtiene la key del mensaje y exige membership del canal. `200 {downloadUrl,fileName}`; URL GET firmada 300 segundos. En modo download se añade `Content-Disposition: attachment`; en modo view no.
+La consulta obtiene la key del mensaje y exige membership del canal. `200 {downloadUrl,fileName,expiresIn}`. En modo download la URL dura 300 s y lleva `Content-Disposition: attachment`; en modo view dura 3600 s (la usan `<img>` y el visor, que el cliente cachea) y no lleva disposition. El cliente no debe reutilizar la URL más allá de `expiresIn`.
 
 `400 {error:"UUID is required"}` o `{error:"File not found"}` por excepciones del service, porque el router convierte un error sin status a 400; `403 Access denied`; `500` no es el fallback de este router para errores no tipados (los convierte también a 400). La inexistencia se lanza desde `getFileFromDatabase`, por lo que el `if (!file)` posterior es inalcanzable.
 
