@@ -9,14 +9,19 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import config from '../config/index.js';
+import { getRedis } from '../redis/client.js';
 
-const MAX_SOURCE_SIZE = 25 * 1024 * 1024; // 25 MB — same cap as upload
-const LIBREOFFICE_TIMEOUT_MS = 30000;
-// Full-document previews of large decks take longer than a first-page thumbnail
-const LIBREOFFICE_PREVIEW_TIMEOUT_MS = 60000;
-const PDFTOPPM_TIMEOUT_MS = 20000;
+const {
+  previewMaxSourceBytes: MAX_SOURCE_SIZE,
+  libreofficeTimeoutMs: LIBREOFFICE_TIMEOUT_MS,
+  pdftoppmTimeoutMs: PDFTOPPM_TIMEOUT_MS,
+  conversionConcurrency: CONVERSION_CONCURRENCY,
+  previewFailureTtlSeconds: FAILURE_TTL_SECONDS,
+} = config.files;
+const MAX_SOURCE_MB = Math.round(MAX_SOURCE_SIZE / (1024 * 1024));
 const MAX_PROCESS_OUTPUT = 10 * 1024 * 1024; // cap captured stdout/stderr
 const S3_PRESIGN_TTL = 3600;
+const THUMBNAIL_MAX_PX = 1200; // longest side; independent of the page size (A0 plans…)
 
 const OFFICE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -31,8 +36,7 @@ export function isOfficeType(fileType) {
   return OFFICE_MIME_TYPES.has(fileType);
 }
 
-// Deduplicates concurrent generations for the same thumbnail key.
-const inFlight = new Map();
+const isPdfType = (fileType) => fileType === 'application/pdf';
 
 function getS3Client() {
   return new S3Client({
@@ -63,12 +67,11 @@ function getExtForType(fileType) {
   return 'bin';
 }
 
-async function fileExistsInS3(s3, bucket, key) {
+async function headObject(s3, bucket, key) {
   try {
-    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    return true;
+    return await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -88,6 +91,37 @@ function signPdfUrl(s3, bucket, key) {
     { expiresIn: S3_PRESIGN_TTL }
   );
 }
+
+// ────────────────────────────── Process execution ──────────────────────────────
+
+/**
+ * Caps how many LibreOffice/pdftoppm processes run at once: a big deck can take
+ * ~1 GB of RAM, and several in parallel would get the instance OOM-killed. The
+ * rest wait in a FIFO queue.
+ */
+function createLimiter(max) {
+  let active = 0;
+  const queue = [];
+  const next = () => {
+    if (active >= max || queue.length === 0) return;
+    active++;
+    const { fn, resolve, reject } = queue.shift();
+    Promise.resolve()
+      .then(fn)
+      .then(resolve, reject)
+      .finally(() => {
+        active--;
+        next();
+      });
+  };
+  return (fn) =>
+    new Promise((resolve, reject) => {
+      queue.push({ fn, resolve, reject });
+      next();
+    });
+}
+
+const limitConversion = createLimiter(CONVERSION_CONCURRENCY);
 
 /**
  * Spawns a process detached (own process group) so that on timeout we can kill
@@ -148,7 +182,16 @@ function runProcess(command, args, { timeoutMs }) {
   });
 }
 
-/** Aborts the stream as soon as the source exceeds the 25 MB cap. */
+const runLimited = (command, args, opts) => limitConversion(() => runProcess(command, args, opts));
+
+// ────────────────────────────── Files ──────────────────────────────
+
+const tooLarge = () =>
+  Object.assign(new Error(`Source file exceeds the ${MAX_SOURCE_MB} MB limit for previews`), {
+    code: 'TOO_LARGE',
+  });
+
+/** Aborts the stream as soon as the source exceeds the preview size cap. */
 class SizeLimitTransform extends Transform {
   constructor(limit) {
     super();
@@ -159,43 +202,41 @@ class SizeLimitTransform extends Transform {
   _transform(chunk, _enc, cb) {
     this.total += chunk.length;
     if (this.total > this.limit) {
-      cb(
-        Object.assign(new Error('Source file exceeds the 25 MB limit for thumbnails'), {
-          code: 'TOO_LARGE',
-        })
-      );
+      cb(tooLarge());
       return;
     }
     cb(null, chunk);
   }
 }
 
-/** Streams the source straight to disk, keeping memory bounded regardless of file size. */
-async function downloadSourceToTemp(s3, bucket, key, destPath) {
+/** Streams an S3 object straight to disk, keeping memory bounded regardless of file size. */
+async function downloadToTemp(s3, bucket, key, destPath, limit = MAX_SOURCE_SIZE) {
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-  await pipeline(
-    res.Body,
-    new SizeLimitTransform(MAX_SOURCE_SIZE),
-    createWriteStream(destPath, { flags: 'wx' })
+  await pipeline(res.Body, new SizeLimitTransform(limit), createWriteStream(destPath, { flags: 'wx' }));
+}
+
+async function uploadFromDisk(s3, bucket, key, filePath, contentType) {
+  await s3.send(
+    new PutObjectCommand({ Bucket: bucket, Key: key, Body: await readFile(filePath), ContentType: contentType })
   );
 }
 
 async function renderPdfPageToPng(pdfPath, tmpDir) {
   const prefix = path.join(tmpDir, uuidv4());
-  await runProcess(
+  await runLimited(
     'pdftoppm',
-    ['-png', '-r', '200', '-singlefile', '-f', '1', '-l', '1', pdfPath, prefix],
+    ['-png', '-scale-to', String(THUMBNAIL_MAX_PX), '-singlefile', '-f', '1', '-l', '1', pdfPath, prefix],
     { timeoutMs: PDFTOPPM_TIMEOUT_MS }
   );
-  return readFile(`${prefix}.png`);
+  return `${prefix}.png`;
 }
 
 /** Converts an Office file to PDF inside tmpDir and returns the PDF path. */
-async function convertOfficeToPdf(inputPath, tmpDir, { timeoutMs = LIBREOFFICE_TIMEOUT_MS } = {}) {
+async function convertOfficeToPdf(inputPath, tmpDir) {
   // Isolated profile dir per run avoids LibreOffice profile lock contention
   // between concurrent conversions and lives inside tmpDir (cleaned up after).
   const profileDir = path.join(tmpDir, 'lo_profile');
-  await runProcess(
+  await runLimited(
     'libreoffice',
     [
       `-env:UserInstallation=file://${profileDir}`,
@@ -209,117 +250,185 @@ async function convertOfficeToPdf(inputPath, tmpDir, { timeoutMs = LIBREOFFICE_T
       tmpDir,
       inputPath,
     ],
-    { timeoutMs }
+    { timeoutMs: LIBREOFFICE_TIMEOUT_MS }
   );
 
   const base = path.basename(inputPath, path.extname(inputPath));
   return path.join(tmpDir, `${base}.pdf`);
 }
 
-function putPdf(s3, bucket, key, body) {
-  return s3.send(
-    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: 'application/pdf' })
+async function withTempDir(prefix, fn) {
+  const tmpDir = await mkdtemp(path.join(tmpdir(), prefix));
+  try {
+    return await fn(tmpDir);
+  } finally {
+    // Guaranteed cleanup of every temp file (source, PDF, PNG, LibreOffice profile)
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// ────────────────────────────── Failure memo ──────────────────────────────
+// A conversion that failed (timeout, crash, too large) is not retried on every
+// render of the message by every client. Redis when available, memory otherwise.
+
+const localFailures = new Map(); // fileKey → { reason, expiresAt }
+const failureKey = (fileKey) => `preview-failed:${fileKey}`;
+
+async function getFailure(fileKey) {
+  try {
+    const reason = await getRedis().get(failureKey(fileKey));
+    if (reason) return reason;
+  } catch {
+    /* fall back to the in-process memo */
+  }
+  const local = localFailures.get(fileKey);
+  if (local && local.expiresAt > Date.now()) return local.reason;
+  localFailures.delete(fileKey);
+  return null;
+}
+
+async function rememberFailure(fileKey, reason) {
+  localFailures.set(fileKey, { reason, expiresAt: Date.now() + FAILURE_TTL_SECONDS * 1000 });
+  try {
+    await getRedis().set(failureKey(fileKey), reason, 'EX', FAILURE_TTL_SECONDS);
+  } catch {
+    /* best-effort */
+  }
+}
+
+function failureReason(err) {
+  if (err?.code === 'TOO_LARGE') return 'too_large';
+  if (err?.code === 'ETIMEDOUT') return 'timeout';
+  return 'conversion_failed';
+}
+
+// ────────────────────────────── Jobs ──────────────────────────────
+// One job per source file: the Office → PDF conversion feeds both the thumbnail
+// and the document viewer, so a file is never converted twice at the same time.
+
+const jobs = new Map(); // `${kind}:${fileKey}` → Promise
+
+function runJob(key, fileKey, work) {
+  const existing = jobs.get(key);
+  if (existing) return { job: existing, started: false };
+
+  const job = work().catch(async (err) => {
+    console.error(`[previews] ${key} failed:`, err.message, err.stderr ?? '');
+    await rememberFailure(fileKey, failureReason(err));
+    throw err;
+  });
+  jobs.set(key, job);
+  job.finally(() => jobs.delete(key)).catch(() => {});
+  return { job, started: true };
+}
+
+/** Office: PDF rendition (reused if already in S3) + first-page thumbnail. */
+function officeJob(s3, bucket, fileKey, fileType) {
+  return runJob(`office:${fileKey}`, fileKey, () =>
+    withTempDir('office-', async (tmpDir) => {
+      const pdfKey = getPreviewPdfKey(fileKey);
+      const thumbKey = getThumbnailKey(fileKey);
+      let pdfPath = path.join(tmpDir, 'preview.pdf');
+
+      if (await headObject(s3, bucket, pdfKey)) {
+        await downloadToTemp(s3, bucket, pdfKey, pdfPath, Infinity);
+      } else {
+        const ext = path.extname(fileKey) || `.${getExtForType(fileType)}`;
+        const sourcePath = path.join(tmpDir, `source${ext}`);
+        await downloadToTemp(s3, bucket, fileKey, sourcePath);
+        pdfPath = await convertOfficeToPdf(sourcePath, tmpDir);
+        await uploadFromDisk(s3, bucket, pdfKey, pdfPath, 'application/pdf');
+      }
+
+      if (!(await headObject(s3, bucket, thumbKey))) {
+        const pngPath = await renderPdfPageToPng(pdfPath, tmpDir);
+        await uploadFromDisk(s3, bucket, thumbKey, pngPath, 'image/png');
+      }
+    })
   );
 }
 
-async function generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType) {
-  const tmpDir = await mkdtemp(path.join(tmpdir(), 'thumb-'));
-  try {
-    const ext = path.extname(fileKey) || `.${getExtForType(fileType)}`;
-    const sourcePath = path.join(tmpDir, `source${ext}`);
-    await downloadSourceToTemp(s3, bucket, fileKey, sourcePath);
-
-    let pngBuffer;
-    if (fileType === 'application/pdf') {
-      pngBuffer = await renderPdfPageToPng(sourcePath, tmpDir);
-    } else if (isOfficeType(fileType)) {
-      const pdfPath = await convertOfficeToPdf(sourcePath, tmpDir);
-      pngBuffer = await renderPdfPageToPng(pdfPath, tmpDir);
-      // Keep the full PDF too, so opening the document viewer needs no second conversion
-      await putPdf(s3, bucket, getPreviewPdfKey(fileKey), await readFile(pdfPath)).catch((err) =>
-        console.error('[thumbnails] could not store preview PDF:', err.message)
-      );
-    } else {
-      return null;
-    }
-
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: thumbKey,
-        Body: pngBuffer,
-        ContentType: 'image/png',
-      })
-    );
-
-    return signThumbnailUrl(s3, bucket, thumbKey);
-  } finally {
-    // Guaranteed cleanup of every temp file (source, PDF, PNG, LibreOffice profile)
-    // even when an error is thrown mid-way.
-    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-  }
+/** PDF: first-page thumbnail only (the viewer reads the original). */
+function pdfThumbnailJob(s3, bucket, fileKey) {
+  return runJob(`pdf:${fileKey}`, fileKey, () =>
+    withTempDir('pdfthumb-', async (tmpDir) => {
+      const sourcePath = path.join(tmpDir, 'source.pdf');
+      await downloadToTemp(s3, bucket, fileKey, sourcePath);
+      const pngPath = await renderPdfPageToPng(sourcePath, tmpDir);
+      await uploadFromDisk(s3, bucket, getThumbnailKey(fileKey), pngPath, 'image/png');
+    })
+  );
 }
 
-export async function getThumbnailUrl(messageUuid, { fileKey, fileType }) {
-  const s3 = getS3Client();
-  const bucket = config.s3.bucket;
-  const thumbKey = getThumbnailKey(fileKey);
-
-  // Reuse an already-generated thumbnail when present.
-  if (await fileExistsInS3(s3, bucket, thumbKey)) {
-    const url = await signThumbnailUrl(s3, bucket, thumbKey);
-    return { url, generated: false };
+/** Fails fast (no download) when the source is over the preview cap. */
+async function checkSourceSize(s3, bucket, fileKey) {
+  const head = await headObject(s3, bucket, fileKey);
+  if (head?.ContentLength > MAX_SOURCE_SIZE) {
+    await rememberFailure(fileKey, 'too_large');
+    return 'too_large';
   }
-
-  // Deduplicate: if the same thumbnail is already being generated, await it.
-  const pending = inFlight.get(thumbKey);
-  if (pending) return pending;
-
-  const task = (async () => {
-    const url = await generateAndStoreThumbnail(s3, bucket, thumbKey, fileKey, fileType);
-    return { url, generated: true };
-  })();
-  inFlight.set(thumbKey, task);
-  task.finally(() => inFlight.delete(thumbKey)).catch(() => {});
-
-  return task;
-}
-
-async function generateAndStorePreviewPdf(s3, bucket, previewKey, fileKey, fileType) {
-  const tmpDir = await mkdtemp(path.join(tmpdir(), 'preview-'));
-  try {
-    const ext = path.extname(fileKey) || `.${getExtForType(fileType)}`;
-    const sourcePath = path.join(tmpDir, `source${ext}`);
-    await downloadSourceToTemp(s3, bucket, fileKey, sourcePath);
-    const pdfPath = await convertOfficeToPdf(sourcePath, tmpDir, {
-      timeoutMs: LIBREOFFICE_PREVIEW_TIMEOUT_MS,
-    });
-    await putPdf(s3, bucket, previewKey, await readFile(pdfPath));
-    return signPdfUrl(s3, bucket, previewKey);
-  } finally {
-    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-  }
+  return null;
 }
 
 /**
- * URL of a PDF the document viewer can render: the original for PDFs, a cached
- * LibreOffice conversion (generated on first request) for Office files.
+ * Status of a generated asset, never waiting for a conversion:
+ *   { status: 'ready', url }
+ *   { status: 'pending', job, started } — job resolves to { status: 'ready', url } or rejects
+ *   { status: 'unavailable', reason }   — 'too_large' | 'timeout' | 'conversion_failed' | 'unsupported'
+ * `started` is true for the caller that launched the job, so only it notifies clients.
  */
-export async function getDocumentPreviewUrl({ fileKey, fileType }) {
+async function resolveAsset({ fileKey, fileType, assetKey, sign, startJob }) {
   const s3 = getS3Client();
   const bucket = config.s3.bucket;
 
-  if (fileType === 'application/pdf') return signPdfUrl(s3, bucket, fileKey);
-  if (!isOfficeType(fileType)) return null;
+  if (await headObject(s3, bucket, assetKey)) {
+    return { status: 'ready', url: await sign(s3, bucket, assetKey) };
+  }
 
-  const previewKey = getPreviewPdfKey(fileKey);
-  if (await fileExistsInS3(s3, bucket, previewKey)) return signPdfUrl(s3, bucket, previewKey);
+  const failed = await getFailure(fileKey);
+  if (failed) return { status: 'unavailable', reason: failed };
 
-  const pending = inFlight.get(previewKey);
-  if (pending) return pending;
+  // Joining a running job skips the size check: it was done by whoever started it
+  const running = jobs.get(`office:${fileKey}`) || jobs.get(`pdf:${fileKey}`);
+  if (!running) {
+    const tooBig = await checkSourceSize(s3, bucket, fileKey);
+    if (tooBig) return { status: 'unavailable', reason: tooBig };
+  }
 
-  const task = generateAndStorePreviewPdf(s3, bucket, previewKey, fileKey, fileType);
-  inFlight.set(previewKey, task);
-  task.finally(() => inFlight.delete(previewKey)).catch(() => {});
-  return task;
+  const { job, started } = startJob(s3, bucket, fileKey, fileType);
+  const result = job.then(async () => ({ status: 'ready', url: await sign(s3, bucket, assetKey) }));
+  // callers that only joined the job don't await it; keep its failure from becoming
+  // an unhandled rejection (that would crash the process)
+  result.catch(() => {});
+  return { status: 'pending', started, job: result };
+}
+
+export function getThumbnailStatus({ fileKey, fileType }) {
+  if (!isPdfType(fileType) && !isOfficeType(fileType)) {
+    return Promise.resolve({ status: 'unavailable', reason: 'unsupported' });
+  }
+  return resolveAsset({
+    fileKey,
+    fileType,
+    assetKey: getThumbnailKey(fileKey),
+    sign: signThumbnailUrl,
+    startJob: isPdfType(fileType)
+      ? (s3, bucket, key) => pdfThumbnailJob(s3, bucket, key)
+      : officeJob,
+  });
+}
+
+/** PDF the document viewer renders: the original PDF, or the Office conversion. */
+export async function getDocumentPreviewStatus({ fileKey, fileType }) {
+  if (isPdfType(fileType)) {
+    return { status: 'ready', url: await signPdfUrl(getS3Client(), config.s3.bucket, fileKey) };
+  }
+  if (!isOfficeType(fileType)) return { status: 'unavailable', reason: 'unsupported' };
+  return resolveAsset({
+    fileKey,
+    fileType,
+    assetKey: getPreviewPdfKey(fileKey),
+    sign: signPdfUrl,
+    startJob: officeJob,
+  });
 }

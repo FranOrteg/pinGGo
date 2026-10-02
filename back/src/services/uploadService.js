@@ -54,7 +54,8 @@ const ALLOWED_MIME_TYPES = new Set([
   'audio/mp4',
 ]);
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+const MAX_FILE_SIZE = config.files.uploadMaxBytes;
+const MAX_FILE_SIZE_MB = Math.round(MAX_FILE_SIZE / (1024 * 1024));
 
 function getS3Client() {
   return new S3Client({
@@ -92,7 +93,7 @@ export async function createPresignedUpload(req, res) {
   }
 
   if (Number(fileSize) > MAX_FILE_SIZE) {
-    return res.status(413).json({ error: 'File too large (max 25 MB)' });
+    return res.status(413).json({ error: `File too large (max ${MAX_FILE_SIZE_MB} MB)`, maxBytes: MAX_FILE_SIZE });
   }
 
   if (!config.s3.bucket) {

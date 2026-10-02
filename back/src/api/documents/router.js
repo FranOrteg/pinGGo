@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
+import { getIO } from '../../socket/io.js';
 import { getFileFromDatabase, assertChannelMembership } from '../../services/downloadService.js';
-import { isOfficeType, getDocumentPreviewUrl } from '../../services/thumbnailService.js';
+import { getDocumentPreviewStatus } from '../../services/thumbnailService.js';
+import { sendAssetStatus } from '../previewResponse.js';
 
 const router = Router();
 
@@ -17,14 +19,18 @@ router.get('/preview', authenticate, async (req, res) => {
     const hasAccess = await assertChannelMembership(file.channel_id, req.user.sub);
     if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
 
-    if (file.file_type !== 'application/pdf' && !isOfficeType(file.file_type)) {
-      return res.status(415).json({ error: 'Preview not available for this file type' });
+    const result = await getDocumentPreviewStatus({ fileKey: file.file_key, fileType: file.file_type });
+
+    // Clients waiting in the viewer re-request this endpoint for a fresh signed URL
+    if (result.status === 'pending' && result.started) {
+      const room = () => getIO()?.to(`channel:${file.channel_uuid}`);
+      result.job.then(
+        () => room()?.emit('document:ready', { messageUuid: uuid }),
+        () => room()?.emit('document:failed', { messageUuid: uuid })
+      );
     }
 
-    const url = await getDocumentPreviewUrl({ fileKey: file.file_key, fileType: file.file_type });
-    if (!url) return res.status(404).json({ error: 'Could not generate preview' });
-
-    res.json({ url });
+    sendAssetStatus(res, result);
   } catch (error) {
     if (error.message === 'File not found') return res.status(404).json({ error: error.message });
     console.error('[documents] preview error:', error);

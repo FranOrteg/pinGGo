@@ -58,4 +58,17 @@ export default {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
+
+  files: {
+    // Uploads go browser → S3 with a presigned PUT, so this cap costs the server nothing
+    uploadMaxBytes: num(process.env.UPLOAD_MAX_MB, 1024) * 1024 * 1024,
+    // Above this, files still upload/download but get no thumbnail or Office PDF preview
+    previewMaxSourceBytes: num(process.env.PREVIEW_MAX_SOURCE_MB, 300) * 1024 * 1024,
+    libreofficeTimeoutMs: num(process.env.LIBREOFFICE_TIMEOUT_MS, 240000),
+    pdftoppmTimeoutMs: num(process.env.PDFTOPPM_TIMEOUT_MS, 60000),
+    // LibreOffice/pdftoppm processes allowed at once (each big deck can take ~1 GB of RAM)
+    conversionConcurrency: Math.max(1, num(process.env.CONVERSION_CONCURRENCY, 2)),
+    // A failed conversion is not retried for this long
+    previewFailureTtlSeconds: num(process.env.PREVIEW_FAILURE_TTL_SECONDS, 6 * 3600),
+  },
 };

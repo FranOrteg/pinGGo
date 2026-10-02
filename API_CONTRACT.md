@@ -86,7 +86,7 @@ Statuses realmente usados por el código:
 | 403 | Falta de membership/permisos o avatar key inválida | `{error: string}` |
 | 404 | Usuario, canal, mensaje, archivo o avatar no encontrado; thumbnail no disponible | `{error: string}` |
 | 409 | Email o username ya ocupado al registrar | `{error: string}` |
-| 413 | Archivo >25 MB o avatar >5 MB | `{error: string}` |
+| 413 | Archivo > `UPLOAD_MAX_MB` (1024 MB por defecto) o avatar >5 MB | `{error: string, maxBytes?}` |
 | 415 | MIME no permitido | `{error: string}` |
 | 422 | No se genera en ningún handler | — |
 | 429 | Rate limit global de Express | `response.send("Too many requests, please try again later.")` del handler por defecto; no `{error}` |
@@ -473,7 +473,7 @@ MIME permitidos: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/sv
 
 La respuesta `200` es `{uploadUrl,fileKey}`. La URL firma `PUT` por 300 segundos con `ContentType=fileType` y `ContentLength=Number(fileSize)`. La key es `attachments/<requestingUserUuid>/<randomUuid><lowercaseExtension>`.
 
-Statuses: `400` campos requeridos; `415 File type not allowed`; `413 File too large (max 25 MB)`; `503 S3 not configured`; `403 Not a member of this channel`. La función se registra como async sin `try/catch` ni `next` (`upload/router.js` → `createPresignedUpload`); con Express 4, una excepción de DB/S3 no queda normalizada por el `errorHandler` global como `{error}` y puede terminar como rechazo no manejado. No debe asumirse un `500` JSON estable para ese caso.
+Statuses: `400` campos requeridos; `415 File type not allowed`; `413 {error:"File too large (max <UPLOAD_MAX_MB> MB)", maxBytes}`; `503 S3 not configured`; `403 Not a member of this channel`. La función se registra como async sin `try/catch` ni `next` (`upload/router.js` → `createPresignedUpload`); con Express 4, una excepción de DB/S3 no queda normalizada por el `errorHandler` global como `{error}` y puede terminar como rechazo no manejado. No debe asumirse un `500` JSON estable para ese caso.
 
 El backend calcula `fileUrl`, pero no lo devuelve ni persiste metadata. La subida S3 posterior no es observada ni confirmada por el backend.
 
@@ -488,27 +488,39 @@ La consulta obtiene la key del mensaje y exige membership del canal. `200 {downl
 
 `400 {error:"UUID is required"}` o `{error:"File not found"}` por excepciones del service, porque el router convierte un error sin status a 400; `403 Access denied`; `500` no es el fallback de este router para errores no tipados (los convierte también a 400). La inexistencia se lanza desde `getFileFromDatabase`, por lo que el `if (!file)` posterior es inalcanzable.
 
-### `GET /api/thumbnails/presign`
+### Vistas previas generadas (miniaturas y PDF de Office)
 
-Query `uuid`: UUID del message, obligatorio. Requiere que exista archivo, membership y que MIME sea PDF o Office. Soporta PDF y Word/Excel/PowerPoint MIME listados en `isOfficeType`.
+Las miniaturas (PDF/Office) y el PDF de Office para el visor se generan **en segundo plano**: los endpoints nunca esperan a LibreOffice. Respuesta común (`api/previewResponse.js`):
 
-- `200 {url}`; URL GET firmada normalmente 3600 segundos.
-- `400 {error:"uuid required"}`.
-- Por archivo ausente, el service lanza antes del `if (!file)`: respuesta efectiva `500 {error:"File not found"}`.
-- `403 Access denied`.
-- `404 Thumbnail not available for this file type` o `Could not generate thumbnail`.
-- `500` descarga S3, `pdftoppm`, LibreOffice u otro error.
+- `200 {url}`: ya existe; URL GET firmada 3600 s.
+- `202 {status:"pending"}`: se está generando. Cuando termina se emite un evento al room `channel:<channelUuid>` (ver más abajo).
+- `422 {error:"Preview not available", reason}`: no se puede generar. `reason` es `too_large` (origen > `PREVIEW_MAX_SOURCE_MB`), `timeout`, `conversion_failed` o `unsupported`. Los fallos se recuerdan en Redis (`preview-failed:<fileKey>`, `PREVIEW_FAILURE_TTL_SECONDS`, 6 h por defecto) y no se reintentan mientras tanto.
+- `400 uuid required`; `403 Access denied`; `404 File not found`; `500` solo para errores inesperados (DB, S3).
 
-Genera thumbnail bajo `thumbnails/<original-key-without-extension>_thumb.png`, limita la fuente a 25 MiB, y deduplica generaciones concurrentes. Si acaba de generarse, emite `thumbnail:ready` al room del canal.
+Pipeline (`services/thumbnailService.js`): un único trabajo por archivo Office (`office:<fileKey>`) convierte a PDF una vez, lo guarda en `previews/<base>.pdf` y genera `thumbnails/<base>_thumb.png` (`pdftoppm -scale-to 1200`, página 1). Miniatura y visor comparten ese trabajo. Los PDF solo generan la miniatura. Como mucho, `CONVERSION_CONCURRENCY` procesos de LibreOffice/pdftoppm a la vez; el resto espera en cola.
 
-### `GET /api/documents/preview`
+#### `GET /api/thumbnails/presign`
 
-Query obligatoria `uuid` (UUID del mensaje). Exige membership del canal del archivo.
+Query `uuid` (UUID del mensaje). PDF u Office. Al terminar emite `thumbnail:ready {messageUuid,url}` o `thumbnail:failed {messageUuid}`.
 
-- PDF: `200 {url}` con URL firmada (1 h) del original, inline y `Content-Type: application/pdf`.
-- Office (doc/docx/xls/xlsx/ppt/pptx): convierte con LibreOffice a PDF, lo guarda en S3 como `previews/<base>.pdf` y devuelve su URL firmada. Las siguientes peticiones reutilizan el PDF. La conversión de la miniatura (`/thumbnails/presign`) también guarda este PDF.
-- `400 uuid required`; `403 Access denied`; `404 File not found`; `415` si el tipo no es PDF/Office; `500` si falla la conversión (timeout 60 s, origen > 25 MB).
-- Al eliminar un canal se borran también las claves `previews/…`.
+#### `GET /api/documents/preview`
+
+Query `uuid` (UUID del mensaje). PDF para el visor de documentos.
+
+- PDF: `200 {url}` del original, inline y con `Content-Type: application/pdf` (pdf.js lo lee por rangos).
+- Office: el PDF convertido según el contrato común. Al terminar emite `document:ready {messageUuid}` o `document:failed {messageUuid}`; el cliente vuelve a llamar al endpoint para obtener la URL firmada.
+- Al eliminar un canal se borran también las claves `previews/…` y `thumbnails/…`.
+
+#### Variables de entorno
+
+| Variable | Defecto | Uso |
+| --- | --- | --- |
+| `UPLOAD_MAX_MB` | 1024 | Tamaño máximo de subida |
+| `PREVIEW_MAX_SOURCE_MB` | 300 | Tamaño máximo del origen para generar vistas previas |
+| `LIBREOFFICE_TIMEOUT_MS` | 240000 | Timeout de la conversión Office → PDF |
+| `PDFTOPPM_TIMEOUT_MS` | 60000 | Timeout del render de la miniatura |
+| `CONVERSION_CONCURRENCY` | 2 | Conversiones simultáneas |
+| `PREVIEW_FAILURE_TTL_SECONDS` | 21600 | Tiempo que se recuerda un fallo de conversión |
 
 ## 11. Link previews
 
@@ -614,6 +626,9 @@ Payload `{status}`. Solo procesa `online`, `away`, `dnd`; valores restantes se i
 | `typing:stop` | `{channelId,username}` | Fin de indicador |
 | `presence:change` | `{userUuid,username,status}` | Connect, set o disconnect |
 | `thumbnail:ready` | `{messageUuid,url}` | Thumbnail recién generado |
+| `thumbnail:failed` | `{messageUuid}` | No se pudo generar el thumbnail |
+| `document:ready` | `{messageUuid}` | PDF de Office listo para el visor |
+| `document:failed` | `{messageUuid}` | No se pudo convertir el Office |
 | `channel:created` | `{channel}` | Canal creado, o te han añadido a uno privado/group |
 | `channel:removed` | `{channelId}` | Te han quitado de un canal (a `user:<uuid>`) |
 | `channel:deleted` | `{channelId}` | El owner ha eliminado el canal |
